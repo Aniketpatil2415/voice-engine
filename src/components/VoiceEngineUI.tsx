@@ -73,11 +73,13 @@ export default function VoiceEngineUI() {
   // Auto-Stop (VAD) Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const vadRafRef = useRef<number | null>(null);
-  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
   const t = UI_TEXT[activeLang];
 
-  // Load saved ledger & theme (v3 key resets old Hindi-only localStorage cleanly)
+  // Load saved ledger & theme
   useEffect(() => {
     try {
       const savedCust = localStorage.getItem("voxledger_customers_v3");
@@ -101,7 +103,7 @@ export default function VoiceEngineUI() {
     }
   }, [customers, transactions, isDark]);
 
-  // Cleanup audio monitoring on unmount
+  // Cleanup VAD audio monitoring
   const cleanupVad = useCallback(() => {
     if (vadRafRef.current !== null) {
       cancelAnimationFrame(vadRafRef.current);
@@ -411,8 +413,8 @@ export default function VoiceEngineUI() {
         const dataArray = new Uint8Array(analyser.fftSize);
         let hasSpoken = false;
         let silenceStart: number | null = null;
-        const SPEECH_THRESHOLD = 0.025; // RMS threshold for speech
-        const SILENCE_DURATION_MS = 1500; // Auto-stop after 1.5s silence
+        const SPEECH_THRESHOLD = 0.025;
+        const SILENCE_DURATION_MS = 1500;
 
         const detectSilence = () => {
           if (
@@ -450,7 +452,7 @@ export default function VoiceEngineUI() {
         // Fallback: manual STOP still works cleanly
       }
 
-      // 12-second safety cap in case of continuous loud shop noise
+      // 12-second safety cap
       maxDurationTimerRef.current = setTimeout(() => {
         stopRecording();
       }, 12000);
@@ -502,7 +504,7 @@ export default function VoiceEngineUI() {
         : `नमस्ते ${tx.customerName} जी,\n*${BOLIKHATA_CONFIG.appName} डिजिटल पर्ची*\n\n${itemsText}\n\nकुल बिल: ₹${tx.totalAmount}\nनकद जमा: ₹${tx.paidAmount}\n*कुल बकाया उधार: ₹${cust?.totalUdhaar ?? 0}*\n\nधन्यवाद!`;
 
     window.open(
-      `[https://wa.me/$](https://wa.me/$){phone}?text=${encodeURIComponent(msg)}`,
+      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
       "_blank"
     );
   };
@@ -516,47 +518,78 @@ export default function VoiceEngineUI() {
     0
   );
 
-  // Theme tokens
+  // Theme + Liquid Glass Tokens
   const bgPage = isDark
-    ? "bg-[#09090B] text-zinc-100"
-    : "bg-[#F4F5F7] text-slate-900";
-  const bgSurface = isDark ? "bg-[#111114]" : "bg-white";
-  const bgSubtle = isDark ? "bg-[#18181C]" : "bg-slate-50";
-  const borderCol = isDark ? "border-zinc-800" : "border-slate-200";
+    ? "bg-[#07070A] text-zinc-100"
+    : "bg-[#EEF2F6] text-slate-900";
+  const bgSurface = isDark ? "bg-[#111116]" : "bg-white";
+  const bgGlass = isDark
+    ? "bg-zinc-900/65 backdrop-blur-xl ring-1 ring-inset ring-white/10 shadow-xl shadow-black/40"
+    : "bg-white/75 backdrop-blur-xl ring-1 ring-inset ring-white/80 shadow-lg shadow-slate-900/5";
+  const bgSubtle = isDark ? "bg-[#18181F]" : "bg-slate-50/90";
+  const borderCol = isDark ? "border-zinc-800/80" : "border-slate-200/80";
   const textMuted = isDark ? "text-zinc-400" : "text-slate-500";
   const textPrimary = isDark ? "text-white" : "text-slate-900";
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-200 font-sans ${bgPage}`}
+      className={`relative min-h-screen w-full overflow-x-hidden transition-colors duration-300 font-sans pb-24 md:pb-10 ${bgPage}`}
     >
-      {/* Shopkeeper Top Bar */}
-      <header className={`sticky top-0 z-30 border-b ${borderCol} ${bgSurface}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
-              <Store className="w-5 h-5"/>
-            </div>
-            <div>
+      {/* Subtle Ambient Background Orbs for Liquid Glass Refraction */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div
+          className={`absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl transition-opacity duration-500 ${
+            isDark ? "bg-blue-600/15" : "bg-blue-400/20"
+          }`}
+        />
+        <div
+          className={`absolute top-40 -right-24 h-80 w-80 rounded-full blur-3xl transition-opacity duration-500 ${
+            isDark ? "bg-emerald-500/10" : "bg-indigo-300/20"
+          }`}
+        />
+      </div>
+
+      {/* Liquid Glass Sticky Header */}
+      <header
+        className={`sticky top-0 z-30 border-b ${borderCol} ${
+          isDark
+            ? "bg-[#09090D]/75 backdrop-blur-xl"
+            : "bg-white/75 backdrop-blur-xl"
+        }`}
+      >
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/25 shrink-0"
+            >
+              <Store className="w-4 h-4 sm:w-5 sm:h-5" />
+            </motion.div>
+            <div className="min-w-0">
               <h1
-                className={`font-bold tracking-tight text-base leading-none ${textPrimary}`}
+                className={`font-bold tracking-tight text-sm sm:text-base leading-none truncate ${textPrimary}`}
               >
                 {BOLIKHATA_CONFIG.appName}
               </h1>
-              <p className={`text-[11px] mt-0.5 ${textMuted}`}>{t.subtitle}</p>
+              <p
+                className={`hidden sm:block text-[11px] mt-0.5 truncate ${textMuted}`}
+              >
+                {t.subtitle}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* App UI Language Switcher (Default EN) */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Sliding Language Switcher */}
             <div
-              className={`flex items-center p-1 rounded-lg border ${borderCol} ${bgSubtle}`}
+              className={`flex items-center p-0.5 sm:p-1 rounded-xl border ${borderCol} ${bgSubtle}`}
             >
               {(["en", "hi", "mr"] as SupportedLang[]).map((code) => (
                 <button
                   key={code}
                   onClick={() => setActiveLang(code)}
-                  className={`relative px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`relative px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                     activeLang === code
                       ? "text-white"
                       : `${textMuted} hover:${textPrimary}`
@@ -570,7 +603,7 @@ export default function VoiceEngineUI() {
                         stiffness: 500,
                         damping: 32,
                       }}
-                      className="absolute inset-0 bg-blue-600 rounded-md z-0"
+                      className="absolute inset-0 bg-blue-600 rounded-lg shadow-sm z-0"
                     />
                   )}
                   <span className="relative z-10">{UI_TEXT[code].label}</span>
@@ -579,35 +612,39 @@ export default function VoiceEngineUI() {
             </div>
 
             {/* Day / Night Mode Toggle */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.92 }}
               onClick={() => setIsDark((d) => !d)}
-              className={`p-2 rounded-lg border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-blue-500 transition-colors cursor-pointer`}
+              className={`p-1.5 sm:p-2 rounded-xl border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-blue-500 transition-colors cursor-pointer`}
               title={isDark ? "Switch to Day Mode" : "Switch to Night Mode"}
             >
               {isDark ? (
-                <Sun className="w-4 h-4 text-amber-400"/>
+                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
               ) : (
-                <Moon className="w-4 h-4 text-slate-700"/>
+                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-700" />
               )}
-            </button>
+            </motion.button>
 
             {/* Offline Simulator Toggle */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.94 }}
               onClick={() => setShowOfflineDemo((v) => !v)}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
                 showOfflineDemo
-                  ? "bg-blue-600 border-blue-600 text-white"
+                  ? "bg-blue-600 border-blue-600 text-white shadow-sm"
                   : `${borderCol} ${bgSubtle} ${textMuted} hover:${textPrimary}`
               }`}
+              title="Demo Simulator"
             >
-              <Terminal className="w-3.5 h-3.5"/>
-              <span>{t.demoBtn}</span>
-            </button>
+              <Terminal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t.demoBtn}</span>
+            </motion.button>
 
             {/* Voice TTS Toggle */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.92 }}
               onClick={() => setTtsEnabled((v) => !v)}
-              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+              className={`p-1.5 sm:p-2 rounded-xl border transition-colors cursor-pointer ${
                 ttsEnabled
                   ? isDark
                     ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
@@ -617,108 +654,119 @@ export default function VoiceEngineUI() {
               title={ttsEnabled ? "Mute Voice" : "Unmute Voice"}
             >
               {ttsEnabled ? (
-                <Volume2 className="w-4 h-4"/>
+                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               ) : (
-                <VolumeX className="w-4 h-4"/>
+                <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               )}
-            </button>
+            </motion.button>
 
             {/* Reset */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.92 }}
               onClick={handleResetDemo}
-              className={`p-2 rounded-lg border ${borderCol} ${bgSubtle} ${textMuted} hover:text-red-500 transition-colors cursor-pointer`}
+              className={`p-1.5 sm:p-2 rounded-xl border ${borderCol} ${bgSubtle} ${textMuted} hover:text-red-500 transition-colors cursor-pointer`}
               title="Reset Demo Data"
             >
-              <Trash2 className="w-4 h-4"/>
-            </button>
+              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </motion.button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Shopkeeper Summary Strip */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div
-            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+      <main className="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Compact 3-Column KPI Strip (Liquid Glass) */}
+        <section className="grid grid-cols-3 gap-2 sm:gap-4">
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className={`p-3 sm:p-5 rounded-2xl border ${borderCol} ${bgGlass} flex items-center justify-between min-w-0`}
           >
-            <div>
+            <div className="min-w-0">
               <p
-                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+                className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate ${textMuted}`}
               >
                 {t.kpiUdhaar}
               </p>
               <motion.p
                 key={totalMarketUdhaar}
-                initial={{ scale: 1.06 }}
+                initial={{ scale: 1.08 }}
                 animate={{ scale: 1 }}
-                className="text-3xl font-bold tabular-nums mt-1 text-red-600 dark:text-red-400"
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                className="text-lg sm:text-3xl font-bold tabular-nums mt-0.5 sm:mt-1 text-red-600 dark:text-red-400 truncate"
               >
                 ₹{totalMarketUdhaar.toLocaleString("en-IN")}
               </motion.p>
             </div>
             <div
-              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+              className={`hidden sm:flex h-11 w-11 rounded-xl items-center justify-center shrink-0 ${
                 isDark
-                  ? "bg-red-500/10 text-red-400"
+                  ? "bg-red-500/15 text-red-400"
                   : "bg-red-50 text-red-600"
               }`}
             >
-              <IndianRupee className="w-5 h-5"/>
+              <IndianRupee className="w-5 h-5" />
             </div>
-          </div>
+          </motion.div>
 
-          <div
-            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className={`p-3 sm:p-5 rounded-2xl border ${borderCol} ${bgGlass} flex items-center justify-between min-w-0`}
           >
-            <div>
+            <div className="min-w-0">
               <p
-                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+                className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate ${textMuted}`}
               >
                 {t.kpiCash}
               </p>
               <motion.p
                 key={todayCashCollected}
-                initial={{ scale: 1.06 }}
+                initial={{ scale: 1.08 }}
                 animate={{ scale: 1 }}
-                className="text-3xl font-bold tabular-nums mt-1 text-emerald-600 dark:text-emerald-400"
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                className="text-lg sm:text-3xl font-bold tabular-nums mt-0.5 sm:mt-1 text-emerald-600 dark:text-emerald-400 truncate"
               >
                 ₹{todayCashCollected.toLocaleString("en-IN")}
               </motion.p>
             </div>
             <div
-              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+              className={`hidden sm:flex h-11 w-11 rounded-xl items-center justify-center shrink-0 ${
                 isDark
-                  ? "bg-emerald-500/10 text-emerald-400"
+                  ? "bg-emerald-500/15 text-emerald-400"
                   : "bg-emerald-50 text-emerald-600"
               }`}
             >
-              <Wallet className="w-5 h-5"/>
+              <Wallet className="w-5 h-5" />
             </div>
-          </div>
+          </motion.div>
 
-          <div
-            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+          <motion.div
+            whileHover={{ y: -2 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className={`p-3 sm:p-5 rounded-2xl border ${borderCol} ${bgGlass} flex items-center justify-between min-w-0`}
           >
-            <div>
+            <div className="min-w-0">
               <p
-                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+                className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wide truncate ${textMuted}`}
               >
                 {t.kpiCustomers}
               </p>
-              <p className={`text-3xl font-bold tabular-nums mt-1 ${textPrimary}`}>
+              <p
+                className={`text-lg sm:text-3xl font-bold tabular-nums mt-0.5 sm:mt-1 ${textPrimary}`}
+              >
                 {customers.length}
               </p>
             </div>
             <div
-              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+              className={`hidden sm:flex h-11 w-11 rounded-xl items-center justify-center shrink-0 ${
                 isDark
-                  ? "bg-blue-500/10 text-blue-400"
+                  ? "bg-blue-500/15 text-blue-400"
                   : "bg-blue-50 text-blue-600"
               }`}
             >
-              <Users className="w-5 h-5"/>
+              <Users className="w-5 h-5" />
             </div>
-          </div>
+          </motion.div>
         </section>
 
         {/* Zero-Key Offline Simulator Drawer */}
@@ -728,33 +776,36 @@ export default function VoiceEngineUI() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
               <div
-                className={`p-4 rounded-xl border ${
+                className={`p-3.5 sm:p-4 rounded-2xl border backdrop-blur-xl ${
                   isDark
-                    ? "bg-blue-950/20 border-blue-800/50"
-                    : "bg-blue-50/70 border-blue-200"
-                } space-y-3`}
+                    ? "bg-blue-950/30 border-blue-800/50"
+                    : "bg-blue-50/80 border-blue-200/80"
+                } space-y-2.5`}
               >
-                <div className="flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400">
-                  <span>{t.demoBannerTitle}</span>
-                  <span className="opacity-75">{t.demoBannerSub}</span>
+                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400">
+                  <span className="truncate">{t.demoBannerTitle}</span>
+                  <span className="opacity-75 shrink-0">{t.demoBannerSub}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {OFFLINE_DEMO_SCENARIOS.map((scenario, idx) => (
-                    <button
+                    <motion.button
                       key={idx}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => applyVoiceAction(scenario.response)}
-                      className={`text-left p-3 rounded-lg border ${borderCol} ${bgSurface} hover:border-blue-500 transition-all cursor-pointer flex items-start gap-2`}
+                      className={`text-left p-2.5 sm:p-3 rounded-xl border ${borderCol} ${bgSurface} hover:border-blue-500 transition-all cursor-pointer flex items-start gap-2`}
                     >
-                      <Play className="w-3.5 h-3.5 mt-0.5 text-blue-600 shrink-0"/>
+                      <Play className="w-3.5 h-3.5 mt-0.5 text-blue-600 shrink-0" />
                       <span
-                        className={`text-xs font-medium leading-snug ${textPrimary}`}
+                        className={`text-xs font-medium leading-snug break-words ${textPrimary}`}
                       >
                         {scenario.label}
                       </span>
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               </div>
@@ -762,20 +813,25 @@ export default function VoiceEngineUI() {
           )}
         </AnimatePresence>
 
-        {/* Main Voice Counter Console (with Auto-Stop VAD) */}
+        {/* Liquid Glass Main Voice Console */}
         <section
-          className={`p-5 sm:p-6 rounded-xl border-2 ${
-            isRecording ? "border-red-500" : borderCol
-          } ${bgSurface} transition-colors`}
+          className={`relative overflow-hidden p-4 sm:p-6 rounded-2xl border-2 transition-all duration-300 ${
+            isRecording
+              ? "border-red-500/80 shadow-lg shadow-red-500/15"
+              : borderCol
+          } ${bgGlass}`}
         >
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6">
-            <div className="flex-1 space-y-2.5 min-w-0">
-              <div className="flex items-center gap-2 text-xs font-semibold">
+          {/* Subtle top specular glass sheen */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-white/40 to-transparent" />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex-1 space-y-2 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-semibold">
                 <span
-                  className={`px-2 py-0.5 rounded-md ${
+                  className={`px-2.5 py-0.5 rounded-lg border ${borderCol} ${
                     isDark
-                      ? "bg-zinc-800 text-zinc-300"
-                      : "bg-slate-100 text-slate-700"
+                      ? "bg-zinc-800/80 text-zinc-200"
+                      : "bg-white/80 text-slate-700"
                   }`}
                 >
                   UI: {t.nativeLabel} • Speak Any Language
@@ -788,8 +844,8 @@ export default function VoiceEngineUI() {
               </div>
 
               {isRecording ? (
-                <div className="flex items-center gap-4 py-1">
-                  <div className="flex items-end gap-1 h-9">
+                <div className="flex items-center gap-3 sm:gap-4 py-1">
+                  <div className="flex items-end gap-1 h-8 sm:h-9 shrink-0">
                     {WAVE_BARS.map((height, idx) => (
                       <motion.span
                         key={idx}
@@ -801,17 +857,19 @@ export default function VoiceEngineUI() {
                           duration: 0.75 + (idx % 4) * 0.12,
                           ease: "easeInOut",
                         }}
-                        className="w-1.5 rounded-full bg-red-500"
+                        className="w-1 sm:w-1.5 rounded-full bg-red-500"
                       />
                     ))}
                   </div>
-                  <p className="text-sm font-semibold text-red-500">
+                  <p className="text-xs sm:text-sm font-semibold text-red-500">
                     {t.listeningText}
                   </p>
                 </div>
               ) : isProcessing ? (
                 <div className="py-1 space-y-2">
-                  <p className={`text-sm font-semibold ${textPrimary}`}>
+                  <p
+                    className={`text-xs sm:text-sm font-semibold ${textPrimary}`}
+                  >
                     {t.processingText}
                   </p>
                   <div
@@ -823,7 +881,7 @@ export default function VoiceEngineUI() {
                       animate={{ x: ["-100%", "200%"] }}
                       transition={{
                         repeat: Infinity,
-                        duration: 1.1,
+                        duration: 1.05,
                         ease: "easeInOut",
                       }}
                       className="w-1/2 h-full bg-linear-to-r from-transparent via-blue-600 to-transparent"
@@ -832,31 +890,35 @@ export default function VoiceEngineUI() {
                 </div>
               ) : latestResponse ? (
                 <motion.div
-                  key={latestResponse.transcript + latestResponse.latency_ms.total}
-                  initial={{ opacity: 0, y: 4 }}
+                  key={
+                    latestResponse.transcript + latestResponse.latency_ms.total
+                  }
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 28 }}
                   className="space-y-2"
                 >
                   {latestResponse.transcript && (
                     <p
-                      className={`text-base sm:text-lg font-semibold ${textPrimary}`}
+                      className={`text-sm sm:text-lg font-semibold break-words ${textPrimary}`}
                     >
                       “{latestResponse.transcript}”
                     </p>
                   )}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                      <Volume2 className="w-4 h-4 shrink-0"/>
-                      {latestResponse.spoken_reply}
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <p className="text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Volume2 className="w-4 h-4 shrink-0" />
+                      <span>{latestResponse.spoken_reply}</span>
                     </p>
                     {undoSnapshot && (
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.94 }}
                         onClick={handleUndo}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-red-500 hover:text-red-500 transition-colors cursor-pointer`}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-red-500 hover:text-red-500 transition-colors cursor-pointer`}
                       >
-                        <RotateCcw className="w-3 h-3"/>
+                        <RotateCcw className="w-3 h-3" />
                         {undoSnapshot.label}
-                      </button>
+                      </motion.button>
                     )}
                   </div>
                 </motion.div>
@@ -867,7 +929,7 @@ export default function VoiceEngineUI() {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-1"
                 >
-                  <p className={`text-lg sm:text-xl font-bold ${textPrimary}`}>
+                  <p className={`text-base sm:text-xl font-bold ${textPrimary}`}>
                     {t.idleHeadline}
                   </p>
                   <p className={`text-xs sm:text-sm ${textMuted}`}>
@@ -878,46 +940,47 @@ export default function VoiceEngineUI() {
 
               {errorMsg && (
                 <div className="flex items-center gap-2 text-xs font-medium text-red-500 pt-1">
-                  <AlertTriangle className="w-4 h-4 shrink-0"/>
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
             </div>
 
-            {/* Big Tactile Shopkeeper Mic Button (Auto-Stop + Manual Override) */}
-            <div className="shrink-0">
+            {/* Desktop Mic Button (Hidden on Mobile; Sticky Dock handles Mobile) */}
+            <div className="hidden md:block shrink-0">
               <motion.button
+                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing}
-                className={`relative w-full md:w-48 h-14 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-sm ${
+                className={`relative w-48 h-14 rounded-2xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-md ${
                   isRecording
-                    ? "bg-red-600 hover:bg-red-700 text-white"
+                    ? "bg-red-600 hover:bg-red-700 text-white shadow-red-600/30"
                     : isProcessing
                     ? `${bgSubtle} ${textMuted} cursor-not-allowed`
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30"
                 }`}
               >
                 {isRecording && (
                   <motion.span
-                    initial={{ scale: 1, opacity: 0.6 }}
-                    animate={{ scale: 1.2, opacity: 0 }}
+                    initial={{ scale: 1, opacity: 0.65 }}
+                    animate={{ scale: 1.22, opacity: 0 }}
                     transition={{
                       repeat: Infinity,
                       duration: 1.1,
                       ease: "easeOut",
                     }}
-                    className="absolute inset-0 rounded-xl border-2 border-red-500 pointer-events-none"
+                    className="absolute inset-0 rounded-2xl border-2 border-red-500 pointer-events-none"
                   />
                 )}
                 {isRecording ? (
                   <>
-                    <Square className="w-4 h-4 fill-current"/>
+                    <Square className="w-4 h-4 fill-current" />
                     <span>{t.stopBtn}</span>
                   </>
                 ) : (
                   <>
-                    <Mic className="w-5 h-5"/>
+                    <Mic className="w-5 h-5" />
                     <span>{t.speakBtn}</span>
                   </>
                 )}
@@ -927,15 +990,15 @@ export default function VoiceEngineUI() {
         </section>
 
         {/* Bottom 2-Column Workspace */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Left: Recent Transactions */}
           <div
-            className={`lg:col-span-7 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}
+            className={`lg:col-span-7 rounded-2xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col shadow-sm`}
           >
             <div
-              className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
+              className={`px-4 sm:px-5 py-3 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
             >
-              <h2 className={`text-sm font-bold ${textPrimary}`}>
+              <h2 className={`text-xs sm:text-sm font-bold ${textPrimary}`}>
                 {t.recentEntries}
               </h2>
               <span className={`text-xs font-mono ${textMuted}`}>
@@ -953,19 +1016,21 @@ export default function VoiceEngineUI() {
                   <motion.div
                     key={tx.id}
                     layout
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                    className="p-4 sm:p-5 flex items-start justify-between gap-4"
+                    className="p-3.5 sm:p-5 flex items-start justify-between gap-3"
                   >
-                    <div className="space-y-2 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`font-bold text-base ${textPrimary}`}>
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span
+                          className={`font-bold text-sm sm:text-base ${textPrimary}`}
+                        >
                           {tx.customerName}
                         </span>
                         <span
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                          className={`text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md ${
                             tx.type === "PAYMENT"
                               ? isDark
                                 ? "bg-emerald-500/15 text-emerald-400"
@@ -977,7 +1042,7 @@ export default function VoiceEngineUI() {
                         >
                           {tx.type === "PAYMENT" ? t.paidTag : t.saleTag}
                         </span>
-                        <span className={`text-xs ${textMuted}`}>
+                        <span className={`text-[11px] sm:text-xs ${textMuted}`}>
                           {tx.timestamp}
                         </span>
                       </div>
@@ -987,7 +1052,7 @@ export default function VoiceEngineUI() {
                           {tx.items.map((item, idx) => (
                             <span
                               key={idx}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-md border ${borderCol} ${bgSubtle} ${textPrimary}`}
+                              className={`text-[11px] sm:text-xs font-medium px-2 py-0.5 sm:py-1 rounded-lg border ${borderCol} ${bgSubtle} ${textPrimary}`}
                             >
                               {item.name} ({item.qty}) — ₹{item.price}
                             </span>
@@ -995,14 +1060,16 @@ export default function VoiceEngineUI() {
                         </div>
                       )}
 
-                      <p className={`text-xs truncate max-w-md ${textMuted}`}>
+                      <p
+                        className={`text-[11px] sm:text-xs truncate ${textMuted}`}
+                      >
                         “{tx.rawTranscript}”
                       </p>
                     </div>
 
                     <div className="text-right shrink-0 space-y-2">
                       <p
-                        className={`font-bold text-lg tabular-nums ${
+                        className={`font-bold text-base sm:text-lg tabular-nums ${
                           tx.udhaarDelta > 0
                             ? "text-red-600 dark:text-red-400"
                             : "text-emerald-600 dark:text-emerald-400"
@@ -1013,17 +1080,21 @@ export default function VoiceEngineUI() {
                           : `-₹${Math.abs(tx.udhaarDelta)}`}
                       </p>
 
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.94 }}
                         onClick={() => openWhatsAppBill(tx)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer ${
                           isDark
                             ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
                             : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                         }`}
                       >
-                        <MessageCircle className="w-3.5 h-3.5"/>
-                        <span>{t.whatsappBtn}</span>
-                      </button>
+                        <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">
+                          {t.whatsappBtn}
+                        </span>
+                        <span className="sm:hidden">Bill</span>
+                      </motion.button>
                     </div>
                   </motion.div>
                 ))}
@@ -1033,12 +1104,12 @@ export default function VoiceEngineUI() {
 
           {/* Right: Customer Khata Book */}
           <div
-            className={`lg:col-span-5 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}
+            className={`lg:col-span-5 rounded-2xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col shadow-sm`}
           >
             <div
-              className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
+              className={`px-4 sm:px-5 py-3 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
             >
-              <h2 className={`text-sm font-bold ${textPrimary}`}>
+              <h2 className={`text-xs sm:text-sm font-bold ${textPrimary}`}>
                 {t.customerKhata}
               </h2>
               <span className={`text-xs font-semibold ${textMuted}`}>
@@ -1061,16 +1132,16 @@ export default function VoiceEngineUI() {
                       animate={{
                         backgroundColor: isHighlighted
                           ? isDark
-                            ? "rgba(37, 99, 235, 0.18)"
+                            ? "rgba(37, 99, 235, 0.2)"
                             : "rgba(37, 99, 235, 0.08)"
                           : "rgba(0, 0, 0, 0)",
                       }}
                       transition={{ duration: 0.25 }}
-                      className="px-5 py-4 flex items-center justify-between"
+                      className="px-4 sm:px-5 py-3.5 flex items-center justify-between"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                          className={`h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                             isDark
                               ? "bg-zinc-800 text-blue-400"
                               : "bg-blue-50 text-blue-700"
@@ -1078,19 +1149,21 @@ export default function VoiceEngineUI() {
                         >
                           {cust.name.charAt(0)}
                         </div>
-                        <div>
-                          <p className={`font-bold text-sm ${textPrimary}`}>
+                        <div className="min-w-0">
+                          <p
+                            className={`font-bold text-sm truncate ${textPrimary}`}
+                          >
                             {cust.name}
                           </p>
-                          <p className={`text-xs ${textMuted}`}>
+                          <p className={`text-xs truncate ${textMuted}`}>
                             {cust.lastActivity}
                           </p>
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p
-                          className={`font-bold text-base tabular-nums ${
+                          className={`font-bold text-sm sm:text-base tabular-nums ${
                             cust.totalUdhaar > 0
                               ? "text-red-600 dark:text-red-400"
                               : "text-emerald-600 dark:text-emerald-400"
@@ -1110,6 +1183,54 @@ export default function VoiceEngineUI() {
           </div>
         </section>
       </main>
+
+      {/* Mobile Liquid Glass Sticky Thumb-Zone Mic Dock */}
+      <div
+        className={`md:hidden fixed bottom-0 inset-x-0 z-40 border-t ${borderCol} px-4 py-3 ${
+          isDark
+            ? "bg-[#09090D]/80 backdrop-blur-xl"
+            : "bg-white/80 backdrop-blur-xl"
+        }`}
+      >
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={isProcessing}
+          className={`relative w-full h-12 rounded-2xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-lg ${
+            isRecording
+              ? "bg-red-600 text-white shadow-red-600/30"
+              : isProcessing
+              ? `${bgSubtle} ${textMuted} cursor-not-allowed`
+              : "bg-blue-600 text-white shadow-blue-600/30"
+          }`}
+        >
+          {isRecording && (
+            <motion.span
+              initial={{ scale: 1, opacity: 0.65 }}
+              animate={{ scale: 1.08, opacity: 0 }}
+              transition={{
+                repeat: Infinity,
+                duration: 1.1,
+                ease: "easeOut",
+              }}
+              className="absolute inset-0 rounded-2xl border-2 border-red-500 pointer-events-none"
+            />
+          )}
+          {isRecording ? (
+            <>
+              <Square className="w-4 h-4 fill-current" />
+              <span>{t.stopBtn}</span>
+            </>
+          ) : isProcessing ? (
+            <span>{t.processingText}</span>
+          ) : (
+            <>
+              <Mic className="w-5 h-5" />
+              <span>{t.speakBtn}</span>
+            </>
+          )}
+        </motion.button>
+      </div>
     </div>
   );
 }
