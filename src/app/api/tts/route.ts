@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
+const VOICE_MAP: Record<string, string> = {
+  hi: "hi-IN-MadhurNeural",
+  mr: "mr-IN-ManoharNeural",
+  en: "en-IN-PrabhatNeural",
+};
+
 export async function POST(req: Request) {
   try {
-    const { text } = await req.json();
+    const { text, lang = "hi" } = await req.json();
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
+    const selectedVoice = VOICE_MAP[lang] || VOICE_MAP.hi;
     const tts = new MsEdgeTTS();
-    // hi-IN-SwaraNeural (Female) ya hi-IN-MadhurNeural (Male)
     await tts.setMetadata(
-      "hi-IN-MadhurNeural",
+      selectedVoice,
       OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
     );
 

@@ -1,5 +1,7 @@
 import { Customer, Transaction, VoiceActionResponse } from "@/types/bolikhata";
 
+export type SupportedLang = "hi" | "mr" | "en";
+
 export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: "cust-1",
@@ -49,7 +51,6 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
 ];
 
-// Used automatically when GROQ_API_KEY is not set (Zero-Key Judge Testing)
 export const OFFLINE_DEMO_SCENARIOS: {
   label: string;
   response: VoiceActionResponse;
@@ -69,7 +70,7 @@ export const OFFLINE_DEMO_SCENARIOS: {
       totalAmount: 250,
       paidAmount: 100,
       udhaarDelta: 150,
-      spoken_reply: "रमेश के खाते में 150 रुपये उधार जोड़ दिया है।",
+      spoken_reply: "जी, रमेश के खाते में 150 रुपये उधार जोड़ दिया है।",
       missing_field: null,
       latency_ms: { stt: 410, llm: 520, total: 930 },
     },
@@ -88,7 +89,7 @@ export const OFFLINE_DEMO_SCENARIOS: {
       totalAmount: 295,
       paidAmount: 100,
       udhaarDelta: 195,
-      spoken_reply: "रमेश की एंट्री अपडेट हो गई, अब 195 रुपये उधार है।",
+      spoken_reply: "ठीक है, रमेश की एंट्री अपडेट हो गई, अब 195 रुपये उधार है।",
       missing_field: null,
       latency_ms: { stt: 380, llm: 490, total: 870 },
     },
@@ -104,7 +105,7 @@ export const OFFLINE_DEMO_SCENARIOS: {
       totalAmount: 500,
       paidAmount: 500,
       udhaarDelta: -500,
-      spoken_reply: "सुरेश के खाते से 500 रुपये जमा कर दिए हैं।",
+      spoken_reply: "बढ़िया, सुरेश के खाते में 500 रुपये जमा कर दिए हैं।",
       missing_field: null,
       latency_ms: { stt: 350, llm: 440, total: 790 },
     },
@@ -127,35 +128,81 @@ export const OFFLINE_DEMO_SCENARIOS: {
   },
 ];
 
+export const LANG_META: Record<
+  SupportedLang,
+  {
+    code: SupportedLang;
+    label: string;
+    nativeLabel: string;
+    whisperPrompt: string;
+    replyInstruction: string;
+    sampleCommand: string;
+    idleHeadline: string;
+  }
+> = {
+  hi: {
+    code: "hi",
+    label: "HI",
+    nativeLabel: "हिन्दी",
+    whisperPrompt:
+      "नमस्ते, रमेश, सुरेश, अनीता, मोहन, चीनी, आटा, तेल, दूध, चावल, किलो, लीटर, रुपये, उधार, कैश, जमा, बाकी, खाते में, लिख दो, नहीं, कर दो।",
+    replyInstruction:
+      "Warm, natural 1-sentence confirmation in conversational Devanagari Hindi with natural comma pause (under 15 words). Example: 'जी, रमेश के खाते में 150 रुपये उधार जोड़ दिया है।'",
+    sampleCommand: "“रमेश के खाते में 2 किलो चीनी 90 रुपये उधार लिख दो”",
+    idleHeadline: "बोलो, खाता तुरंत अपडेट होगा।",
+  },
+  mr: {
+    code: "mr",
+    label: "MR",
+    nativeLabel: "मराठी",
+    whisperPrompt:
+      "नमस्कार, रमेश, सुरेश, अनीता, मोहन, साखर, पीठ, तेल, दूध, तांदूळ, किलो, लिटर, रुपये, उधार, रोख, जमा, बाकी, खात्यात, लिहून ठेव, नाही, कर।",
+    replyInstruction:
+      "Warm, natural 1-sentence confirmation in conversational Devanagari Marathi with natural comma pause (under 15 words). Example: 'हो, रमेशच्या खात्यात 150 रुपये उधार लिहिले आहेत.'",
+    sampleCommand: "“रमेशच्या खात्यात 2 किलो साखर 90 रुपये उधार लिहून ठेव”",
+    idleHeadline: "बोला, खाते लगेच अपडेट होईल.",
+  },
+  en: {
+    code: "en",
+    label: "EN",
+    nativeLabel: "English",
+    whisperPrompt:
+      "Ramesh, Suresh, Anita, Mohan, sugar, flour, oil, milk, rice, kg, litre, rupees, credit, udhaar, cash, paid, balance, add, update.",
+    replyInstruction:
+      "Warm, natural 1-sentence confirmation in crisp Indian English (under 15 words). Example: 'Done, added 150 rupees credit to Ramesh account.'",
+    sampleCommand: "“Add 2 kg sugar 90 rupees credit to Ramesh account”",
+    idleHeadline: "Speak. Your ledger updates instantly.",
+  },
+};
+
 export const BOLIKHATA_CONFIG = {
-  appName: "BOLIKHATA",
-  tagline: "Voice-First Kirana Ledger • Zero Typing",
-  whisperContextPrompt:
-    "नमस्ते, रमेश, सुरेश, अनीता, मोहन, चीनी, आटा, तेल, दूध, चावल, किलो, ग्राम, लीटर, रुपये, उधार, कैश, जमा, बाकी, खाते में, लिख दो, नहीं, कर दो, कितना बाकी है।",
-  getSystemPrompt: (existingCustomerNames: string[]) => `You are BoliKhata, an ultra-fast voice-first ledger engine for Indian kirana shopkeepers.
+  appName: "VOXLEDGER",
+  tagline: "Zero-Typing Voice Ledger • HI · MR · EN",
+  getSystemPrompt: (existingCustomerNames: string[], lang: SupportedLang) => `You are VoxLedger, an ultra-fast voice-first ledger engine for Indian retail shopkeepers.
+Active language: ${LANG_META[lang].nativeLabel} (${lang}).
 Existing customers in ledger: ${existingCustomerNames.join(", ")}.
-Always match spoken names to existing customer names in Devanagari if phonetically close (e.g., "Ramesh" -> "रमेश"). If it's a new customer, write their name cleanly in Devanagari.
+Match spoken customer names to existing names if phonetically close (e.g., "Ramesh" -> "रमेश").
 
 Return STRICT JSON ONLY matching this exact schema:
 {
   "intent": "ADD_SALE | RECORD_PAYMENT | CHECK_BALANCE | UPDATE_LAST | CLARIFY",
   "status": "success | needs_clarification",
-  "customerName": "Devanagari name or null",
+  "customerName": "Matched customer name or null",
   "items": [
-    { "name": "Item name in Devanagari", "qty": "e.g. 2 किलो", "price": 90 }
+    { "name": "Item name", "qty": "e.g. 2 kg / 2 किलो", "price": 90 }
   ],
   "totalAmount": 250,
   "paidAmount": 100,
   "udhaarDelta": 150,
   "missing_field": null or "string",
-  "spoken_reply": "Short, natural 1-sentence confirmation in conversational Devanagari Hindi (under 15 words, NEVER formal textbook Hindi)."
+  "spoken_reply": "${LANG_META[lang].replyInstruction}"
 }
 
-Math & Intent Rules:
-1. ADD_SALE: Calculate totalAmount = sum of item prices. If user says "100 cash diya baaki udhaar", paidAmount = 100, udhaarDelta = totalAmount - paidAmount. If nothing paid, paidAmount = 0, udhaarDelta = totalAmount.
-2. RECORD_PAYMENT: When customer pays back ("रमेश ने 200 जमा किए"), items = [], totalAmount = 200, paidAmount = 200, udhaarDelta = -200 (negative!).
-3. CHECK_BALANCE: When shopkeeper asks ("रमेश का कितना बाकी है?"), set intent = "CHECK_BALANCE", udhaarDelta = 0.
-4. UPDATE_LAST: When user corrects previous entry ("नहीं चीनी 3 किलो 135 रुपये कर दो"), use conversation history to output the COMPLETE corrected items, totalAmount, paidAmount, and udhaarDelta.
-5. CLARIFY: If customer name or amount is missing for a sale/payment, set status = "needs_clarification", missing_field = what's missing, and ask ONE short question in spoken_reply.
+Rules:
+1. ADD_SALE: totalAmount = sum of item prices. udhaarDelta = totalAmount - paidAmount.
+2. RECORD_PAYMENT: items = [], totalAmount = paidAmount, udhaarDelta = -paidAmount (negative).
+3. CHECK_BALANCE: udhaarDelta = 0.
+4. UPDATE_LAST: Use history to output complete corrected items, totalAmount, paidAmount, udhaarDelta.
+5. CLARIFY: If customer name or amount is missing, set status = "needs_clarification".
 Never output markdown or text outside JSON.`,
 };

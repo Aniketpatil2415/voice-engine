@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
-import { BOLIKHATA_CONFIG } from "@/config/domain";
+import { BOLIKHATA_CONFIG, LANG_META, SupportedLang } from "@/config/domain";
 
 const HALLUCINATION_SET = new Set([
   "thank you",
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         paidAmount: 0,
         udhaarDelta: 0,
         spoken_reply:
-          "ग्रोक एपीआई की सेट नहीं है। आप नीचे दिए गए ऑफलाइन डेमो बटन से टेस्ट कर सकते हैं।",
+          "ग्रोक एपीआई की सेट नहीं है। आप ऊपर सिमुलेटर बटन से ऑफलाइन टेस्ट कर सकते हैं।",
         missing_field: "GROQ_API_KEY not set in environment",
         latency_ms: { stt: 0, llm: 0, total: Date.now() - totalStart },
       });
@@ -42,6 +42,9 @@ export async function POST(req: Request) {
     const audioFile = formData.get("audio") as File | null;
     const historyRaw = formData.get("history") as string | null;
     const customersRaw = formData.get("customers") as string | null;
+    const langRaw = (formData.get("lang") as string) || "hi";
+    const lang: SupportedLang =
+      langRaw === "mr" || langRaw === "en" ? langRaw : "hi";
 
     if (!audioFile || audioFile.size < 1000) {
       return NextResponse.json({
@@ -53,7 +56,12 @@ export async function POST(req: Request) {
         totalAmount: 0,
         paidAmount: 0,
         udhaarDelta: 0,
-        spoken_reply: "आवाज़ बहुत छोटी थी, कृपया थोड़ा साफ बोलिए।",
+        spoken_reply:
+          lang === "en"
+            ? "Audio was too short, please speak clearly."
+            : lang === "mr"
+            ? "आवाज खूप लहान होता, कृपया पुन्हा बोला."
+            : "आवाज़ बहुत छोटी थी, कृपया थोड़ा साफ बोलिए।",
         missing_field: "Audio clarity",
         latency_ms: { stt: 0, llm: 0, total: Date.now() - totalStart },
       });
@@ -64,8 +72,8 @@ export async function POST(req: Request) {
     const transcription = await groq.audio.transcriptions.create({
       file: audioFile,
       model: "whisper-large-v3",
-      language: "hi",
-      prompt: BOLIKHATA_CONFIG.whisperContextPrompt,
+      language: lang,
+      prompt: LANG_META[lang].whisperPrompt,
       response_format: "json",
       temperature: 0,
     });
@@ -86,7 +94,12 @@ export async function POST(req: Request) {
         totalAmount: 0,
         paidAmount: 0,
         udhaarDelta: 0,
-        spoken_reply: "आवाज़ साफ नहीं आई, कृपया दोबारा बोलिए।",
+        spoken_reply:
+          lang === "en"
+            ? "Could not catch that, please try again."
+            : lang === "mr"
+            ? "आवाज स्पष्ट आला नाही, कृपया पुन्हा बोला."
+            : "आवाज़ साफ नहीं आई, कृपया दोबारा बोलिए।",
         missing_field: "Speech input",
         latency_ms: { stt: sttMs, llm: 0, total: Date.now() - totalStart },
       });
@@ -122,7 +135,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: BOLIKHATA_CONFIG.getSystemPrompt(customerNames),
+          content: BOLIKHATA_CONFIG.getSystemPrompt(customerNames, lang),
         },
         ...previousContext,
         { role: "user", content: rawTranscript },
