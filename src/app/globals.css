@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* === iPhone-Style Liquid Glass System === */
 .liquid-glass-light {
   background: linear-gradient(
