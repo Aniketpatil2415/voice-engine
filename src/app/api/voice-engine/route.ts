@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
-import { BOLIKHATA_CONFIG, LANG_META, SupportedLang } from "@/config/domain";
+import { BOLIKHATA_CONFIG, SupportedLang } from "@/config/domain";
 
 const HALLUCINATION_SET = new Set([
   "thank you",
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         paidAmount: 0,
         udhaarDelta: 0,
         spoken_reply:
-          "ग्रोक एपीआई की सेट नहीं है। आप ऊपर सिमुलेटर बटन से ऑफलाइन टेस्ट कर सकते हैं।",
+          "GROQ_API_KEY is not set. Use the Demo button above to test offline.",
         missing_field: "GROQ_API_KEY not set in environment",
         latency_ms: { stt: 0, llm: 0, total: Date.now() - totalStart },
       });
@@ -42,9 +42,9 @@ export async function POST(req: Request) {
     const audioFile = formData.get("audio") as File | null;
     const historyRaw = formData.get("history") as string | null;
     const customersRaw = formData.get("customers") as string | null;
-    const langRaw = (formData.get("lang") as string) || "hi";
-    const lang: SupportedLang =
-      langRaw === "mr" || langRaw === "en" ? langRaw : "hi";
+    const langRaw = (formData.get("lang") as string) || "en";
+    const uiLang: SupportedLang =
+      langRaw === "hi" || langRaw === "mr" ? langRaw : "en";
 
     if (!audioFile || audioFile.size < 1000) {
       return NextResponse.json({
@@ -57,23 +57,22 @@ export async function POST(req: Request) {
         paidAmount: 0,
         udhaarDelta: 0,
         spoken_reply:
-          lang === "en"
-            ? "Audio was too short, please speak clearly."
-            : lang === "mr"
+          uiLang === "hi"
+            ? "आवाज़ बहुत छोटी थी, कृपया थोड़ा साफ बोलिए।"
+            : uiLang === "mr"
             ? "आवाज खूप लहान होता, कृपया पुन्हा बोला."
-            : "आवाज़ बहुत छोटी थी, कृपया थोड़ा साफ बोलिए।",
+            : "Audio was too short, please speak clearly.",
         missing_field: "Audio clarity",
         latency_ms: { stt: 0, llm: 0, total: Date.now() - totalStart },
       });
     }
 
-    // 1. Speech-to-Text
+    // 1. Speech-to-Text (NO language lock — supports HI + MR + EN code-switching freely)
     const sttStart = Date.now();
     const transcription = await groq.audio.transcriptions.create({
       file: audioFile,
       model: "whisper-large-v3",
-      language: lang,
-      prompt: LANG_META[lang].whisperPrompt,
+      prompt: BOLIKHATA_CONFIG.multilingualWhisperPrompt,
       response_format: "json",
       temperature: 0,
     });
@@ -95,17 +94,17 @@ export async function POST(req: Request) {
         paidAmount: 0,
         udhaarDelta: 0,
         spoken_reply:
-          lang === "en"
-            ? "Could not catch that, please try again."
-            : lang === "mr"
+          uiLang === "hi"
+            ? "आवाज़ साफ नहीं आई, कृपया दोबारा बोलिए।"
+            : uiLang === "mr"
             ? "आवाज स्पष्ट आला नाही, कृपया पुन्हा बोला."
-            : "आवाज़ साफ नहीं आई, कृपया दोबारा बोलिए।",
+            : "Could not catch that, please try again.",
         missing_field: "Speech input",
         latency_ms: { stt: sttMs, llm: 0, total: Date.now() - totalStart },
       });
     }
 
-    // 2. Parse context
+    // 2. Parse conversation & customer context
     let previousContext: { role: "user" | "assistant"; content: string }[] = [];
     if (historyRaw) {
       try {
@@ -116,7 +115,7 @@ export async function POST(req: Request) {
       }
     }
 
-    let customerNames: string[] = ["रमेश", "सुरेश", "अनीता", "मोहन"];
+    let customerNames: string[] = ["Ramesh", "Suresh", "Anita", "Mohan"];
     if (customersRaw) {
       try {
         const parsed = JSON.parse(customersRaw);
@@ -126,7 +125,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Structured Action Extraction
+    // 3. Structured Action Extraction (handles Marathi/Hindi numbers + rate*qty math)
     const llmStart = Date.now();
     const completion = await groq.chat.completions.create({
       model: "openai/gpt-oss-20b",
@@ -135,7 +134,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: BOLIKHATA_CONFIG.getSystemPrompt(customerNames, lang),
+          content: BOLIKHATA_CONFIG.getSystemPrompt(customerNames, uiLang),
         },
         ...previousContext,
         { role: "user", content: rawTranscript },
@@ -160,7 +159,7 @@ export async function POST(req: Request) {
       totalAmount: Number(parsed.totalAmount) || 0,
       paidAmount: Number(parsed.paidAmount) || 0,
       udhaarDelta: Number(parsed.udhaarDelta) || 0,
-      spoken_reply: parsed.spoken_reply || "एंट्री सेव हो गई है।",
+      spoken_reply: parsed.spoken_reply || "Entry saved.",
       missing_field: parsed.missing_field || null,
       latency_ms: {
         stt: sttMs,

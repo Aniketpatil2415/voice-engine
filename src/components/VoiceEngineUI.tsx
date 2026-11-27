@@ -30,7 +30,7 @@ import {
   INITIAL_CUSTOMERS,
   INITIAL_TRANSACTIONS,
   OFFLINE_DEMO_SCENARIOS,
-  LANG_META,
+  UI_TEXT,
   SupportedLang,
 } from "@/config/domain";
 
@@ -43,8 +43,8 @@ interface UndoSnapshot {
 const WAVE_BARS = [14, 26, 38, 20, 44, 30, 18, 40, 24, 34, 16, 28];
 
 export default function VoiceEngineUI() {
-  const [isDark, setIsDark] = useState<boolean>(false); // Default Day Mode for bright shop counters
-  const [activeLang, setActiveLang] = useState<SupportedLang>("hi");
+  const [isDark, setIsDark] = useState<boolean>(false);
+  const [activeLang, setActiveLang] = useState<SupportedLang>("en");
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [transactions, setTransactions] =
     useState<Transaction[]>(INITIAL_TRANSACTIONS);
@@ -70,12 +70,19 @@ export default function VoiceEngineUI() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load saved ledger & theme
+  // Auto-Stop (VAD) Refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const vadRafRef = useRef<number | null>(null);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const t = UI_TEXT[activeLang];
+
+  // Load saved ledger & theme (v3 key resets old Hindi-only localStorage cleanly)
   useEffect(() => {
     try {
-      const savedCust = localStorage.getItem("voxledger_customers_v2");
-      const savedTx = localStorage.getItem("voxledger_tx_v2");
-      const savedTheme = localStorage.getItem("voxledger_theme_v2");
+      const savedCust = localStorage.getItem("voxledger_customers_v3");
+      const savedTx = localStorage.getItem("voxledger_tx_v3");
+      const savedTheme = localStorage.getItem("voxledger_theme_v3");
       if (savedCust) setCustomers(JSON.parse(savedCust));
       if (savedTx) setTransactions(JSON.parse(savedTx));
       if (savedTheme === "dark") setIsDark(true);
@@ -86,13 +93,35 @@ export default function VoiceEngineUI() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("voxledger_customers_v2", JSON.stringify(customers));
-      localStorage.setItem("voxledger_tx_v2", JSON.stringify(transactions));
-      localStorage.setItem("voxledger_theme_v2", isDark ? "dark" : "light");
+      localStorage.setItem("voxledger_customers_v3", JSON.stringify(customers));
+      localStorage.setItem("voxledger_tx_v3", JSON.stringify(transactions));
+      localStorage.setItem("voxledger_theme_v3", isDark ? "dark" : "light");
     } catch {
       // Ignore storage quota errors
     }
   }, [customers, transactions, isDark]);
+
+  // Cleanup audio monitoring on unmount
+  const cleanupVad = useCallback(() => {
+    if (vadRafRef.current !== null) {
+      cancelAnimationFrame(vadRafRef.current);
+      vadRafRef.current = null;
+    }
+    if (maxDurationTimerRef.current) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cleanupVad();
+    };
+  }, [cleanupVad]);
 
   const speakReply = useCallback(
     async (text: string) => {
@@ -210,7 +239,7 @@ export default function VoiceEngineUI() {
               ? {
                   ...c,
                   totalUdhaar: Math.max(0, c.totalUdhaar + deltaDiff),
-                  lastActivity: `आज, ${nowTime}`,
+                  lastActivity: `Today, ${nowTime}`,
                 }
               : c
           )
@@ -221,7 +250,7 @@ export default function VoiceEngineUI() {
         return;
       }
 
-      const nameToMatch = data.customerName || "नया ग्राहक";
+      const nameToMatch = data.customerName || "New Customer";
       const existing = customers.find(
         (c) => c.name.toLowerCase() === nameToMatch.toLowerCase()
       );
@@ -235,7 +264,7 @@ export default function VoiceEngineUI() {
               ? {
                   ...c,
                   totalUdhaar: Math.max(0, c.totalUdhaar + data.udhaarDelta),
-                  lastActivity: `आज, ${nowTime}`,
+                  lastActivity: `Today, ${nowTime}`,
                 }
               : c
           )
@@ -246,7 +275,7 @@ export default function VoiceEngineUI() {
           name: nameToMatch,
           phone: "919822000000",
           totalUdhaar: Math.max(0, data.udhaarDelta),
-          lastActivity: `आज, ${nowTime}`,
+          lastActivity: `Today, ${nowTime}`,
         };
         setCustomers((prev) => [newCustomer, ...prev]);
       }
@@ -279,58 +308,16 @@ export default function VoiceEngineUI() {
     [customers, transactions, speakReply, activeLang]
   );
 
-  const startRecording = async () => {
-    setErrorMsg(null);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 16000,
-        },
-      });
-      streamRef.current = stream;
-
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/mp4",
-      });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType,
-        });
-        stream.getTracks().forEach((track) => track.stop());
-        await sendAudioToEngine(audioBlob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch {
-      setErrorMsg("माइक की परमिशन नहीं मिली। ब्राउज़र में Mic Allow करें।");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+  const stopRecording = useCallback(() => {
+    cleanupVad();
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
     }
-  };
+    setIsRecording(false);
+  }, [cleanupVad]);
 
   const sendAudioToEngine = async (audioBlob: Blob) => {
     setIsProcessing(true);
@@ -364,6 +351,114 @@ export default function VoiceEngineUI() {
     }
   };
 
+  const startRecording = async () => {
+    setErrorMsg(null);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 16000,
+        },
+      });
+      streamRef.current = stream;
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4",
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        cleanupVad();
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType,
+        });
+        stream.getTracks().forEach((track) => track.stop());
+        await sendAudioToEngine(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Hands-Free Auto-Stop (Silence Detection via Web Audio API)
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext;
+        const audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
+
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.fftSize);
+        let hasSpoken = false;
+        let silenceStart: number | null = null;
+        const SPEECH_THRESHOLD = 0.025; // RMS threshold for speech
+        const SILENCE_DURATION_MS = 1500; // Auto-stop after 1.5s silence
+
+        const detectSilence = () => {
+          if (
+            !mediaRecorderRef.current ||
+            mediaRecorderRef.current.state !== "recording"
+          ) {
+            return;
+          }
+
+          analyser.getByteTimeDomainData(dataArray);
+          let sumSquares = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            const normalized = (dataArray[i] - 128) / 128;
+            sumSquares += normalized * normalized;
+          }
+          const rms = Math.sqrt(sumSquares / dataArray.length);
+
+          if (rms > SPEECH_THRESHOLD) {
+            hasSpoken = true;
+            silenceStart = null;
+          } else if (hasSpoken) {
+            if (silenceStart === null) {
+              silenceStart = Date.now();
+            } else if (Date.now() - silenceStart >= SILENCE_DURATION_MS) {
+              stopRecording();
+              return;
+            }
+          }
+
+          vadRafRef.current = requestAnimationFrame(detectSilence);
+        };
+
+        vadRafRef.current = requestAnimationFrame(detectSilence);
+      } catch {
+        // Fallback: manual STOP still works cleanly
+      }
+
+      // 12-second safety cap in case of continuous loud shop noise
+      maxDurationTimerRef.current = setTimeout(() => {
+        stopRecording();
+      }, 12000);
+    } catch {
+      setErrorMsg(t.micError);
+    }
+  };
+
   const handleUndo = () => {
     if (!undoSnapshot) return;
     setCustomers(undoSnapshot.customers);
@@ -385,8 +480,8 @@ export default function VoiceEngineUI() {
     setLatestResponse(null);
     setUndoSnapshot(null);
     setHistory([]);
-    localStorage.removeItem("voxledger_customers_v2");
-    localStorage.removeItem("voxledger_tx_v2");
+    localStorage.removeItem("voxledger_customers_v3");
+    localStorage.removeItem("voxledger_tx_v3");
   };
 
   const openWhatsAppBill = (tx: Transaction) => {
@@ -398,12 +493,16 @@ export default function VoiceEngineUI() {
             .map((i) => `• ${i.name} (${i.qty}) - ₹${i.price}`)
             .join("\n")
         : tx.type === "PAYMENT"
-        ? `• जमा राशि: ₹${tx.paidAmount}`
-        : `• कुल राशि: ₹${tx.totalAmount}`;
+        ? `• Payment Received: ₹${tx.paidAmount}`
+        : `• Total Amount: ₹${tx.totalAmount}`;
 
-    const msg = `नमस्ते ${tx.customerName} जी,\n*${BOLIKHATA_CONFIG.appName} डिजिटल पर्ची*\n\n${itemsText}\n\nकुल बिल: ₹${tx.totalAmount}\nनकद जमा: ₹${tx.paidAmount}\n*कुल बकाया उधार: ₹${cust?.totalUdhaar ?? 0}*\n\nधन्यवाद!`;
+    const msg =
+      activeLang === "en"
+        ? `Hello ${tx.customerName},\n*${BOLIKHATA_CONFIG.appName} Digital Receipt*\n\n${itemsText}\n\nBill Total: ₹${tx.totalAmount}\nCash Paid: ₹${tx.paidAmount}\n*Total Pending Credit: ₹${cust?.totalUdhaar ?? 0}*\n\nThank you!`
+        : `नमस्ते ${tx.customerName} जी,\n*${BOLIKHATA_CONFIG.appName} डिजिटल पर्ची*\n\n${itemsText}\n\nकुल बिल: ₹${tx.totalAmount}\nनकद जमा: ₹${tx.paidAmount}\n*कुल बकाया उधार: ₹${cust?.totalUdhaar ?? 0}*\n\nधन्यवाद!`;
+
     window.open(
-      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
+      `[https://wa.me/$](https://wa.me/$){phone}?text=${encodeURIComponent(msg)}`,
       "_blank"
     );
   };
@@ -417,8 +516,10 @@ export default function VoiceEngineUI() {
     0
   );
 
-  // Theme tokens (Day Mode = High-contrast bright shop counter | Night Mode = Deep OLED)
-  const bgPage = isDark ? "bg-[#09090B] text-zinc-100" : "bg-[#F4F5F7] text-slate-900";
+  // Theme tokens
+  const bgPage = isDark
+    ? "bg-[#09090B] text-zinc-100"
+    : "bg-[#F4F5F7] text-slate-900";
   const bgSurface = isDark ? "bg-[#111114]" : "bg-white";
   const bgSubtle = isDark ? "bg-[#18181C]" : "bg-slate-50";
   const borderCol = isDark ? "border-zinc-800" : "border-slate-200";
@@ -426,32 +527,32 @@ export default function VoiceEngineUI() {
   const textPrimary = isDark ? "text-white" : "text-slate-900";
 
   return (
-    <div className={`min-h-screen transition-colors duration-200 font-sans ${bgPage}`}>
+    <div
+      className={`min-h-screen transition-colors duration-200 font-sans ${bgPage}`}
+    >
       {/* Shopkeeper Top Bar */}
       <header className={`sticky top-0 z-30 border-b ${borderCol} ${bgSurface}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
-              <Store className="w-5 h-5" />
+              <Store className="w-5 h-5"/>
             </div>
             <div>
-              <h1 className={`font-bold tracking-tight text-base leading-none ${textPrimary}`}>
+              <h1
+                className={`font-bold tracking-tight text-base leading-none ${textPrimary}`}
+              >
                 {BOLIKHATA_CONFIG.appName}
               </h1>
-              <p className={`text-[11px] mt-0.5 ${textMuted}`}>
-                {activeLang === "en"
-                  ? "Voice Kirana Khata"
-                  : activeLang === "mr"
-                  ? "बोलणारे किराणा खाते"
-                  : "बोलने वाला किराना खाता"}
-              </p>
+              <p className={`text-[11px] mt-0.5 ${textMuted}`}>{t.subtitle}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Sliding Language Switcher */}
-            <div className={`flex items-center p-1 rounded-lg border ${borderCol} ${bgSubtle}`}>
-              {(["hi", "mr", "en"] as SupportedLang[]).map((code) => (
+            {/* App UI Language Switcher (Default EN) */}
+            <div
+              className={`flex items-center p-1 rounded-lg border ${borderCol} ${bgSubtle}`}
+            >
+              {(["en", "hi", "mr"] as SupportedLang[]).map((code) => (
                 <button
                   key={code}
                   onClick={() => setActiveLang(code)}
@@ -464,11 +565,15 @@ export default function VoiceEngineUI() {
                   {activeLang === code && (
                     <motion.span
                       layoutId="activeLangPill"
-                      transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 32,
+                      }}
                       className="absolute inset-0 bg-blue-600 rounded-md z-0"
                     />
                   )}
-                  <span className="relative z-10">{LANG_META[code].label}</span>
+                  <span className="relative z-10">{UI_TEXT[code].label}</span>
                 </button>
               ))}
             </div>
@@ -479,7 +584,11 @@ export default function VoiceEngineUI() {
               className={`p-2 rounded-lg border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-blue-500 transition-colors cursor-pointer`}
               title={isDark ? "Switch to Day Mode" : "Switch to Night Mode"}
             >
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              {isDark ? (
+                <Sun className="w-4 h-4 text-amber-400"/>
+              ) : (
+                <Moon className="w-4 h-4 text-slate-700"/>
+              )}
             </button>
 
             {/* Offline Simulator Toggle */}
@@ -491,8 +600,8 @@ export default function VoiceEngineUI() {
                   : `${borderCol} ${bgSubtle} ${textMuted} hover:${textPrimary}`
               }`}
             >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>Demo</span>
+              <Terminal className="w-3.5 h-3.5"/>
+              <span>{t.demoBtn}</span>
             </button>
 
             {/* Voice TTS Toggle */}
@@ -507,7 +616,11 @@ export default function VoiceEngineUI() {
               }`}
               title={ttsEnabled ? "Mute Voice" : "Unmute Voice"}
             >
-              {ttsEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              {ttsEnabled ? (
+                <Volume2 className="w-4 h-4"/>
+              ) : (
+                <VolumeX className="w-4 h-4"/>
+              )}
             </button>
 
             {/* Reset */}
@@ -516,19 +629,23 @@ export default function VoiceEngineUI() {
               className={`p-2 rounded-lg border ${borderCol} ${bgSubtle} ${textMuted} hover:text-red-500 transition-colors cursor-pointer`}
               title="Reset Demo Data"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4"/>
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Shopkeeper Summary Strip (Clear, High-Contrast Numbers) */}
+        {/* Shopkeeper Summary Strip */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}>
+          <div
+            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+          >
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}>
-                कुल उधार बाकी (Udhaar)
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+              >
+                {t.kpiUdhaar}
               </p>
               <motion.p
                 key={totalMarketUdhaar}
@@ -539,15 +656,25 @@ export default function VoiceEngineUI() {
                 ₹{totalMarketUdhaar.toLocaleString("en-IN")}
               </motion.p>
             </div>
-            <div className={`h-11 w-11 rounded-lg flex items-center justify-center ${isDark ? "bg-red-500/10 text-red-400" : "bg-red-50 text-red-600"}`}>
-              <IndianRupee className="w-5 h-5" />
+            <div
+              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+                isDark
+                  ? "bg-red-500/10 text-red-400"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              <IndianRupee className="w-5 h-5"/>
             </div>
           </div>
 
-          <div className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}>
+          <div
+            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+          >
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}>
-                आज की नकद वसूली (Cash)
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+              >
+                {t.kpiCash}
               </p>
               <motion.p
                 key={todayCashCollected}
@@ -558,22 +685,38 @@ export default function VoiceEngineUI() {
                 ₹{todayCashCollected.toLocaleString("en-IN")}
               </motion.p>
             </div>
-            <div className={`h-11 w-11 rounded-lg flex items-center justify-center ${isDark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
-              <Wallet className="w-5 h-5" />
+            <div
+              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+                isDark
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "bg-emerald-50 text-emerald-600"
+              }`}
+            >
+              <Wallet className="w-5 h-5"/>
             </div>
           </div>
 
-          <div className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}>
+          <div
+            className={`p-5 rounded-xl border ${borderCol} ${bgSurface} flex items-center justify-between`}
+          >
             <div>
-              <p className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}>
-                कुल ग्राहक (Customers)
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}
+              >
+                {t.kpiCustomers}
               </p>
               <p className={`text-3xl font-bold tabular-nums mt-1 ${textPrimary}`}>
                 {customers.length}
               </p>
             </div>
-            <div className={`h-11 w-11 rounded-lg flex items-center justify-center ${isDark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
-              <Users className="w-5 h-5" />
+            <div
+              className={`h-11 w-11 rounded-lg flex items-center justify-center ${
+                isDark
+                  ? "bg-blue-500/10 text-blue-400"
+                  : "bg-blue-50 text-blue-600"
+              }`}
+            >
+              <Users className="w-5 h-5"/>
             </div>
           </div>
         </section>
@@ -587,10 +730,16 @@ export default function VoiceEngineUI() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className={`p-4 rounded-xl border ${isDark ? "bg-blue-950/20 border-blue-800/50" : "bg-blue-50/70 border-blue-200"} space-y-3`}>
+              <div
+                className={`p-4 rounded-xl border ${
+                  isDark
+                    ? "bg-blue-950/20 border-blue-800/50"
+                    : "bg-blue-50/70 border-blue-200"
+                } space-y-3`}
+              >
                 <div className="flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400">
-                  <span>Offline Judge Demo Simulator (Works without API Key)</span>
-                  <span className="opacity-75">1-Click Test</span>
+                  <span>{t.demoBannerTitle}</span>
+                  <span className="opacity-75">{t.demoBannerSub}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   {OFFLINE_DEMO_SCENARIOS.map((scenario, idx) => (
@@ -599,8 +748,10 @@ export default function VoiceEngineUI() {
                       onClick={() => applyVoiceAction(scenario.response)}
                       className={`text-left p-3 rounded-lg border ${borderCol} ${bgSurface} hover:border-blue-500 transition-all cursor-pointer flex items-start gap-2`}
                     >
-                      <Play className="w-3.5 h-3.5 mt-0.5 text-blue-600 shrink-0" />
-                      <span className={`text-xs font-medium leading-snug ${textPrimary}`}>
+                      <Play className="w-3.5 h-3.5 mt-0.5 text-blue-600 shrink-0"/>
+                      <span
+                        className={`text-xs font-medium leading-snug ${textPrimary}`}
+                      >
                         {scenario.label}
                       </span>
                     </button>
@@ -611,13 +762,23 @@ export default function VoiceEngineUI() {
           )}
         </AnimatePresence>
 
-        {/* Main Voice Counter Console */}
-        <section className={`p-5 sm:p-6 rounded-xl border-2 ${isRecording ? "border-red-500" : borderCol} ${bgSurface} transition-colors`}>
+        {/* Main Voice Counter Console (with Auto-Stop VAD) */}
+        <section
+          className={`p-5 sm:p-6 rounded-xl border-2 ${
+            isRecording ? "border-red-500" : borderCol
+          } ${bgSurface} transition-colors`}
+        >
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6">
             <div className="flex-1 space-y-2.5 min-w-0">
               <div className="flex items-center gap-2 text-xs font-semibold">
-                <span className={`px-2 py-0.5 rounded-md ${isDark ? "bg-zinc-800 text-zinc-300" : "bg-slate-100 text-slate-700"}`}>
-                  {LANG_META[activeLang].nativeLabel}
+                <span
+                  className={`px-2 py-0.5 rounded-md ${
+                    isDark
+                      ? "bg-zinc-800 text-zinc-300"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  UI: {t.nativeLabel} • Speak Any Language
                 </span>
                 {latestResponse && (
                   <span className={`font-mono text-[11px] ${textMuted}`}>
@@ -645,15 +806,19 @@ export default function VoiceEngineUI() {
                     ))}
                   </div>
                   <p className="text-sm font-semibold text-red-500">
-                    सुन रहा हूँ... बोलने के बाद STOP दबाएं
+                    {t.listeningText}
                   </p>
                 </div>
               ) : isProcessing ? (
                 <div className="py-1 space-y-2">
                   <p className={`text-sm font-semibold ${textPrimary}`}>
-                    हिसाब लिख रहा हूँ...
+                    {t.processingText}
                   </p>
-                  <div className={`relative w-full max-w-md h-1.5 rounded-full overflow-hidden ${isDark ? "bg-zinc-800" : "bg-slate-200"}`}>
+                  <div
+                    className={`relative w-full max-w-md h-1.5 rounded-full overflow-hidden ${
+                      isDark ? "bg-zinc-800" : "bg-slate-200"
+                    }`}
+                  >
                     <motion.div
                       animate={{ x: ["-100%", "200%"] }}
                       transition={{
@@ -673,13 +838,15 @@ export default function VoiceEngineUI() {
                   className="space-y-2"
                 >
                   {latestResponse.transcript && (
-                    <p className={`text-base sm:text-lg font-semibold ${textPrimary}`}>
+                    <p
+                      className={`text-base sm:text-lg font-semibold ${textPrimary}`}
+                    >
                       “{latestResponse.transcript}”
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                      <Volume2 className="w-4 h-4 shrink-0" />
+                      <Volume2 className="w-4 h-4 shrink-0"/>
                       {latestResponse.spoken_reply}
                     </p>
                     {undoSnapshot && (
@@ -687,7 +854,7 @@ export default function VoiceEngineUI() {
                         onClick={handleUndo}
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold border ${borderCol} ${bgSubtle} ${textPrimary} hover:border-red-500 hover:text-red-500 transition-colors cursor-pointer`}
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-3 h-3"/>
                         {undoSnapshot.label}
                       </button>
                     )}
@@ -701,29 +868,29 @@ export default function VoiceEngineUI() {
                   className="space-y-1"
                 >
                   <p className={`text-lg sm:text-xl font-bold ${textPrimary}`}>
-                    {LANG_META[activeLang].idleHeadline}
+                    {t.idleHeadline}
                   </p>
                   <p className={`text-xs sm:text-sm ${textMuted}`}>
-                    उदाहरण: {LANG_META[activeLang].sampleCommand}
+                    {t.tryPrefix} {t.sampleCommand}
                   </p>
                 </motion.div>
               )}
 
               {errorMsg && (
                 <div className="flex items-center gap-2 text-xs font-medium text-red-500 pt-1">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <AlertTriangle className="w-4 h-4 shrink-0"/>
                   <span>{errorMsg}</span>
                 </div>
               )}
             </div>
 
-            {/* Big Tactile Shopkeeper Mic Button */}
+            {/* Big Tactile Shopkeeper Mic Button (Auto-Stop + Manual Override) */}
             <div className="shrink-0">
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing}
-                className={`relative w-full md:w-52 h-14 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-sm ${
+                className={`relative w-full md:w-48 h-14 rounded-xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-sm ${
                   isRecording
                     ? "bg-red-600 hover:bg-red-700 text-white"
                     : isProcessing
@@ -745,13 +912,13 @@ export default function VoiceEngineUI() {
                 )}
                 {isRecording ? (
                   <>
-                    <Square className="w-4 h-4 fill-current" />
-                    <span>STOP (रोकें)</span>
+                    <Square className="w-4 h-4 fill-current"/>
+                    <span>{t.stopBtn}</span>
                   </>
                 ) : (
                   <>
-                    <Mic className="w-5 h-5" />
-                    <span>SPEAK (बोलें)</span>
+                    <Mic className="w-5 h-5"/>
+                    <span>{t.speakBtn}</span>
                   </>
                 )}
               </motion.button>
@@ -759,20 +926,28 @@ export default function VoiceEngineUI() {
           </div>
         </section>
 
-        {/* Bottom 2-Column Workspace: Live Khata Entries & Customer List */}
+        {/* Bottom 2-Column Workspace */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Recent Transactions (PARCHI) */}
-          <div className={`lg:col-span-7 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}>
-            <div className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}>
+          {/* Left: Recent Transactions */}
+          <div
+            className={`lg:col-span-7 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}
+          >
+            <div
+              className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
+            >
               <h2 className={`text-sm font-bold ${textPrimary}`}>
-                ताज़ा लेन-देन (Recent Entries)
+                {t.recentEntries}
               </h2>
               <span className={`text-xs font-mono ${textMuted}`}>
-                {transactions.length} entries
+                {transactions.length} {t.entriesCount}
               </span>
             </div>
 
-            <div className={`divide-y ${isDark ? "divide-zinc-800" : "divide-slate-100"}`}>
+            <div
+              className={`divide-y ${
+                isDark ? "divide-zinc-800" : "divide-slate-100"
+              }`}
+            >
               <AnimatePresence initial={false}>
                 {transactions.map((tx) => (
                   <motion.div
@@ -800,7 +975,7 @@ export default function VoiceEngineUI() {
                               : "bg-blue-50 text-blue-700"
                           }`}
                         >
-                          {tx.type === "PAYMENT" ? "जमा (Paid)" : "बिक्री (Sale)"}
+                          {tx.type === "PAYMENT" ? t.paidTag : t.saleTag}
                         </span>
                         <span className={`text-xs ${textMuted}`}>
                           {tx.timestamp}
@@ -846,8 +1021,8 @@ export default function VoiceEngineUI() {
                             : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                         }`}
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>WhatsApp पर्ची</span>
+                        <MessageCircle className="w-3.5 h-3.5"/>
+                        <span>{t.whatsappBtn}</span>
                       </button>
                     </div>
                   </motion.div>
@@ -857,15 +1032,25 @@ export default function VoiceEngineUI() {
           </div>
 
           {/* Right: Customer Khata Book */}
-          <div className={`lg:col-span-5 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}>
-            <div className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}>
+          <div
+            className={`lg:col-span-5 rounded-xl border ${borderCol} ${bgSurface} overflow-hidden flex flex-col`}
+          >
+            <div
+              className={`px-5 py-3.5 border-b ${borderCol} ${bgSubtle} flex items-center justify-between`}
+            >
               <h2 className={`text-sm font-bold ${textPrimary}`}>
-                ग्राहक खाता बही (Customer Khata)
+                {t.customerKhata}
               </h2>
-              <span className={`text-xs font-semibold ${textMuted}`}>INR (₹)</span>
+              <span className={`text-xs font-semibold ${textMuted}`}>
+                INR (₹)
+              </span>
             </div>
 
-            <div className={`divide-y ${isDark ? "divide-zinc-800" : "divide-slate-100"}`}>
+            <div
+              className={`divide-y ${
+                isDark ? "divide-zinc-800" : "divide-slate-100"
+              }`}
+            >
               <AnimatePresence>
                 {customers.map((cust) => {
                   const isHighlighted = highlightedCustomerId === cust.id;
@@ -884,7 +1069,13 @@ export default function VoiceEngineUI() {
                       className="px-5 py-4 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm ${isDark ? "bg-zinc-800 text-blue-400" : "bg-blue-50 text-blue-700"}`}>
+                        <div
+                          className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                            isDark
+                              ? "bg-zinc-800 text-blue-400"
+                              : "bg-blue-50 text-blue-700"
+                          }`}
+                        >
                           {cust.name.charAt(0)}
                         </div>
                         <div>
@@ -908,7 +1099,7 @@ export default function VoiceEngineUI() {
                           ₹{cust.totalUdhaar.toLocaleString("en-IN")}
                         </p>
                         <p className={`text-[11px] font-medium ${textMuted}`}>
-                          {cust.totalUdhaar > 0 ? "बाकी (Due)" : "साफ़ (Clear)"}
+                          {cust.totalUdhaar > 0 ? t.dueLabel : t.clearLabel}
                         </p>
                       </div>
                     </motion.div>
