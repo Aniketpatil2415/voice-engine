@@ -9,16 +9,11 @@ import {
   VolumeX,
   RotateCcw,
   MessageCircle,
-  IndianRupee,
-  Users,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Sparkles,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
+  Terminal,
   Trash2,
   Play,
+  AlertTriangle,
+  Radio,
 } from "lucide-react";
 import {
   Customer,
@@ -37,6 +32,8 @@ interface UndoSnapshot {
   transactions: Transaction[];
   label: string;
 }
+
+const WAVE_BARS = [14, 26, 38, 20, 44, 30, 18, 40, 24, 34, 16, 28];
 
 export default function VoiceEngineUI() {
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
@@ -64,7 +61,6 @@ export default function VoiceEngineUI() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load persisted ledger from localStorage
   useEffect(() => {
     try {
       const savedCust = localStorage.getItem("bolikhata_customers_v1");
@@ -76,7 +72,6 @@ export default function VoiceEngineUI() {
     }
   }, []);
 
-  // Save ledger on change
   useEffect(() => {
     try {
       localStorage.setItem("bolikhata_customers_v1", JSON.stringify(customers));
@@ -86,7 +81,6 @@ export default function VoiceEngineUI() {
     }
   }, [customers, transactions]);
 
-  // Neural TTS Playback (Madhur Male Voice)
   const speakReply = useCallback(
     async (text: string) => {
       if (!ttsEnabled || typeof window === "undefined" || !text) return;
@@ -123,7 +117,6 @@ export default function VoiceEngineUI() {
     [ttsEnabled]
   );
 
-  // Apply structured voice action to ledger state
   const applyVoiceAction = useCallback(
     (data: VoiceActionResponse) => {
       setLatestResponse(data);
@@ -144,7 +137,6 @@ export default function VoiceEngineUI() {
         minute: "2-digit",
       });
 
-      // Handle CHECK_BALANCE
       if (data.intent === "CHECK_BALANCE") {
         const target = customers.find(
           (c) =>
@@ -163,19 +155,17 @@ export default function VoiceEngineUI() {
         return;
       }
 
-      // Save Undo snapshot before mutating ledger
       setUndoSnapshot({
         customers: [...customers],
         transactions: [...transactions],
         label:
           data.intent === "UPDATE_LAST"
-            ? "पिछला सुधार वापस करें"
-            : `${data.customerName || "ग्राहक"} की एंट्री हटाएं`,
+            ? "UNDO EDIT"
+            : `UNDO ${data.customerName || "ENTRY"}`,
       });
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       undoTimerRef.current = setTimeout(() => setUndoSnapshot(null), 12000);
 
-      // Handle UPDATE_LAST
       if (data.intent === "UPDATE_LAST" && transactions.length > 0) {
         const lastTx = transactions[0];
         const deltaDiff = data.udhaarDelta - lastTx.udhaarDelta;
@@ -186,7 +176,7 @@ export default function VoiceEngineUI() {
           totalAmount: data.totalAmount,
           paidAmount: data.paidAmount,
           udhaarDelta: data.udhaarDelta,
-          timestamp: `${nowTime} (Edited)`,
+          timestamp: `${nowTime} · EDITED`,
           rawTranscript: data.transcript,
         };
 
@@ -208,13 +198,12 @@ export default function VoiceEngineUI() {
         return;
       }
 
-      // Handle ADD_SALE or RECORD_PAYMENT
       const nameToMatch = data.customerName || "नया ग्राहक";
       const existing = customers.find(
         (c) => c.name.toLowerCase() === nameToMatch.toLowerCase()
       );
 
-      let targetCustomerId = existing?.id || `cust-${Date.now()}`;
+      const targetCustomerId = existing?.id || `cust-${Date.now()}`;
 
       if (existing) {
         setCustomers((prev) =>
@@ -267,7 +256,6 @@ export default function VoiceEngineUI() {
     [customers, transactions, speakReply]
   );
 
-  // Start Mic Recording
   const startRecording = async () => {
     setErrorMsg(null);
     if (audioRef.current) {
@@ -310,7 +298,7 @@ export default function VoiceEngineUI() {
       mediaRecorder.start();
       setIsRecording(true);
     } catch {
-      setErrorMsg("माइक की परमिशन नहीं मिली। ब्राउज़र में Mic Allow करें।");
+      setErrorMsg("MIC_PERMISSION_DENIED :: ब्राउज़र में Mic Allow करें।");
     }
   };
 
@@ -390,7 +378,6 @@ export default function VoiceEngineUI() {
     );
   };
 
-  // KPI Calculations
   const totalMarketUdhaar = customers.reduce(
     (sum, c) => sum + c.totalUdhaar,
     0
@@ -401,56 +388,64 @@ export default function VoiceEngineUI() {
   );
 
   return (
-    <div className="min-h-screen bg-[#070709] text-zinc-100 font-sans selection:bg-blue-500/30 pb-36">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-[#070709]/85 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+    <div className="min-h-screen bg-[#050505] text-[#F4F4F5] font-sans selection:bg-white selection:text-black">
+      {/* Top Hardware Status Bar */}
+      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-[#050505]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isRecording
+                    ? "bg-[#FF3B30] animate-ping"
+                    : isProcessing
+                    ? "bg-amber-400 animate-pulse"
+                    : "bg-[#00E676]"
+                }`}
+              />
+              <span className="font-mono font-bold tracking-[0.2em] text-xs uppercase text-white">
+                {BOLIKHATA_CONFIG.appName}
+              </span>
             </div>
-            <span className="font-mono font-bold tracking-wider text-sm sm:text-base text-white">
-              {BOLIKHATA_CONFIG.appName}
-            </span>
-            <span className="hidden sm:inline-block text-[11px] font-mono px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400">
-              VOICE-POS v2.0
+            <span className="hidden md:inline-block text-[10px] font-mono tracking-[0.15em] text-zinc-500 border-l border-zinc-800 pl-4">
+              ZERO-TYPING VOICE LEDGER // HI · MR · EN
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center divide-x divide-zinc-800 border-x border-zinc-800 h-full">
             <button
               onClick={() => setShowOfflineDemo((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+              className={`h-full px-3.5 text-[10px] font-mono tracking-[0.15em] uppercase flex items-center gap-1.5 transition-colors cursor-pointer ${
                 showOfflineDemo
-                  ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
+                  ? "bg-white text-black font-bold"
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-900"
               }`}
-              title="Test without API key"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Demo Mode</span>
+              <Terminal className="w-3 h-3" />
+              <span>SIMULATOR</span>
             </button>
 
             <button
               onClick={() => setTtsEnabled((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border transition-all cursor-pointer ${
+              className={`h-full px-3.5 text-[10px] font-mono tracking-[0.15em] uppercase flex items-center gap-1.5 transition-colors cursor-pointer ${
                 ttsEnabled
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-500"
+                  ? "text-[#00E676] hover:bg-zinc-900"
+                  : "text-zinc-600 hover:text-zinc-300"
               }`}
             >
               {ttsEnabled ? (
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3 h-3" />
               ) : (
-                <VolumeX className="w-3.5 h-3.5" />
+                <VolumeX className="w-3 h-3" />
               )}
-              <span>{ttsEnabled ? "TTS ON" : "MUTED"}</span>
+              <span className="hidden sm:inline">
+                {ttsEnabled ? "VOICE ON" : "MUTED"}
+              </span>
             </button>
 
             <button
               onClick={handleResetDemo}
-              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer"
+              className="h-full px-3 text-zinc-500 hover:text-[#FF3B30] hover:bg-zinc-900 transition-colors cursor-pointer"
               title="Reset Ledger"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -459,335 +454,358 @@ export default function VoiceEngineUI() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* KPI Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <motion.div
-            layout
-            className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between"
-          >
-            <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-zinc-400">
-                कुल बाज़ार उधार (Udhaar)
-              </p>
-              <motion.p
-                key={totalMarketUdhaar}
-                initial={{ scale: 1.08, color: "#f87171" }}
-                animate={{ scale: 1, color: "#ffffff" }}
-                className="text-2xl sm:text-3xl font-bold mt-1 font-mono"
-              >
+      {/* Main Architectural Grid */}
+      <main className="max-w-7xl mx-auto border-x border-zinc-800 min-h-[calc(100vh-3rem)]">
+        {/* Top Metrics Strip (No Cards — Pure Hairline Grid) */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800 border-b border-zinc-800">
+          <div className="p-5 sm:p-6 flex flex-col justify-between bg-[#080808]">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-500">
+              01 // TOTAL MARKET UDHAAR
+            </span>
+            <motion.div
+              key={totalMarketUdhaar}
+              initial={{ opacity: 0.4, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 flex items-baseline justify-between"
+            >
+              <span className="text-3xl sm:text-4xl font-mono font-bold tabular-nums tracking-tight text-white">
                 ₹{totalMarketUdhaar.toLocaleString("en-IN")}
-              </motion.p>
-            </div>
-            <div className="h-11 w-11 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
-              <ArrowUpRight className="w-5 h-5" />
-            </div>
-          </motion.div>
+              </span>
+              <span className="text-[10px] font-mono text-[#FF3B30] uppercase tracking-wider">
+                DUE
+              </span>
+            </motion.div>
+          </div>
 
-          <motion.div
-            layout
-            className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between"
-          >
-            <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-zinc-400">
-                आज की कैश वसूली (Cash)
-              </p>
-              <motion.p
-                key={todayCashCollected}
-                initial={{ scale: 1.08, color: "#34d399" }}
-                animate={{ scale: 1, color: "#ffffff" }}
-                className="text-2xl sm:text-3xl font-bold mt-1 font-mono"
-              >
+          <div className="p-5 sm:p-6 flex flex-col justify-between bg-[#080808]">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-500">
+              02 // TODAY CASH COLLECTED
+            </span>
+            <motion.div
+              key={todayCashCollected}
+              initial={{ opacity: 0.4, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 flex items-baseline justify-between"
+            >
+              <span className="text-3xl sm:text-4xl font-mono font-bold tabular-nums tracking-tight text-white">
                 ₹{todayCashCollected.toLocaleString("en-IN")}
-              </motion.p>
-            </div>
-            <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <ArrowDownLeft className="w-5 h-5" />
-            </div>
-          </motion.div>
+              </span>
+              <span className="text-[10px] font-mono text-[#00E676] uppercase tracking-wider">
+                INFLOW
+              </span>
+            </motion.div>
+          </div>
 
-          <motion.div
-            layout
-            className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between"
-          >
-            <div>
-              <p className="text-xs font-mono uppercase tracking-wider text-zinc-400">
-                सक्रिय ग्राहक (Customers)
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold mt-1 font-mono text-white">
-                {customers.length}
-              </p>
+          <div className="p-5 sm:p-6 flex flex-col justify-between bg-[#080808]">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-500">
+              03 // ACTIVE KHATA ACCOUNTS
+            </span>
+            <div className="mt-3 flex items-baseline justify-between">
+              <span className="text-3xl sm:text-4xl font-mono font-bold tabular-nums tracking-tight text-white">
+                {String(customers.length).padStart(2, "0")}
+              </span>
+              <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+                LOCAL_SYNC
+              </span>
             </div>
-            <div className="h-11 w-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <Users className="w-5 h-5" />
-            </div>
-          </motion.div>
-        </div>
+          </div>
+        </section>
 
-        {/* Zero-Key Offline Demo Bar */}
+        {/* Zero-Key Offline Simulator Drawer */}
         <AnimatePresence>
           {showOfflineDemo && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
+            <motion.section
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden border-b border-zinc-800 bg-[#0C0C0E]"
             >
-              <div className="p-4 rounded-2xl bg-blue-950/30 border border-blue-500/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-blue-300 text-xs font-mono uppercase">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Zero-Key Judge Demo Simulator (1-Click Test)</span>
-                  </div>
-                  <span className="text-[11px] text-zinc-400">
-                    Works offline without GROQ_API_KEY
-                  </span>
+              <div className="p-4 sm:px-6 flex flex-col gap-3">
+                <div className="flex items-center justify-between text-[10px] font-mono tracking-[0.15em] uppercase text-zinc-400">
+                  <span>OFFLINE JUDGE SIMULATOR // NO API KEY REQUIRED</span>
+                  <span className="text-zinc-600">CLICK TO EXECUTE</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {OFFLINE_DEMO_SCENARIOS.map((scenario, idx) => (
                     <button
                       key={idx}
                       onClick={() => applyVoiceAction(scenario.response)}
-                      className="flex items-center gap-2 text-left p-2.5 rounded-xl bg-zinc-900/90 hover:bg-blue-600/20 border border-zinc-800 hover:border-blue-500/50 text-xs text-zinc-200 transition-all cursor-pointer"
+                      className="group text-left p-3 border border-zinc-800 bg-[#050505] hover:border-white hover:bg-zinc-900 transition-all cursor-pointer flex items-start gap-2.5"
                     >
-                      <Play className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      <span className="line-clamp-2">{scenario.label}</span>
+                      <Play className="w-3 h-3 mt-0.5 text-zinc-500 group-hover:text-white shrink-0" />
+                      <span className="text-xs text-zinc-300 group-hover:text-white leading-snug">
+                        {scenario.label}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-            </motion.div>
+            </motion.section>
           )}
         </AnimatePresence>
 
-        {/* Error Banner */}
-        <AnimatePresence>
-          {errorMsg && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="p-4 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs font-mono flex items-center gap-3"
-            >
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
-              <span>{errorMsg}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Hardware Voice Command Console (Centerpiece) */}
+        <section className="border-b border-zinc-800 bg-[#050505] p-5 sm:p-6">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6">
+            {/* Left: Live Status + Waveform + Transcript */}
+            <div className="flex-1 space-y-3 min-w-0">
+              <div className="flex items-center gap-3 text-[10px] font-mono tracking-[0.2em] uppercase">
+                <span className="text-zinc-500 flex items-center gap-1.5">
+                  <Radio className="w-3 h-3" />
+                  VOICE CONSOLE
+                </span>
+                {latestResponse && (
+                  <span className="text-zinc-400">
+                    [ {latestResponse.intent} ·{" "}
+                    <span className="text-[#00E676]">
+                      {latestResponse.latency_ms.total}ms
+                    </span>{" "}
+                    ]
+                  </span>
+                )}
+              </div>
 
-        {/* Main 2-Column Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Live Voice Response & Recent Transactions */}
-          <div className="lg:col-span-7 space-y-5">
-            {/* Latest Voice Action Card */}
-            <AnimatePresence mode="wait">
-              {latestResponse ? (
+              {isRecording ? (
+                <div className="flex items-center gap-4 py-1">
+                  <div className="flex items-end gap-1 h-9">
+                    {WAVE_BARS.map((height, idx) => (
+                      <motion.span
+                        key={idx}
+                        animate={{
+                          height: [6, height, 8, height * 0.7, 6],
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 0.75 + (idx % 4) * 0.12,
+                          ease: "easeInOut",
+                        }}
+                        className="w-1 bg-[#FF3B30]"
+                      />
+                    ))}
+                  </div>
+                  <p className="font-mono text-xs sm:text-sm text-[#FF3B30] tracking-wide">
+                    LISTENING... बोलने के बाद STOP दबाएं
+                  </p>
+                </div>
+              ) : isProcessing ? (
+                <div className="py-2 flex items-center gap-3">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1,
+                      ease: "linear",
+                    }}
+                    className="h-4 w-4 border-2 border-zinc-700 border-t-white rounded-full"
+                  />
+                  <p className="font-mono text-xs sm:text-sm text-zinc-300 tracking-wide">
+                    PROCESSING AUDIO → EXTRACTING LEDGER INTENT...
+                  </p>
+                </div>
+              ) : latestResponse ? (
                 <motion.div
                   key={latestResponse.transcript + latestResponse.latency_ms.total}
-                  initial={{ opacity: 0, y: 14, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 26 }}
-                  className={`p-5 rounded-2xl border ${
-                    latestResponse.status === "key_missing" ||
-                    latestResponse.status === "needs_clarification"
-                      ? "bg-amber-950/20 border-amber-500/40"
-                      : "bg-zinc-900/80 border-zinc-700/80 shadow-lg shadow-black/40"
-                  }`}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-1.5"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {latestResponse.intent}
-                    </span>
-                    <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-                      <span>STT {latestResponse.latency_ms.stt}ms</span>
-                      <span>•</span>
-                      <span>LLM {latestResponse.latency_ms.llm}ms</span>
-                      <span>•</span>
-                      <span className="text-emerald-400 font-semibold">
-                        {latestResponse.latency_ms.total}ms
-                      </span>
-                    </div>
-                  </div>
-
                   {latestResponse.transcript && (
-                    <p className="text-sm text-zinc-300 italic mb-3">
+                    <p className="text-base sm:text-lg font-medium text-white tracking-tight">
                       “{latestResponse.transcript}”
                     </p>
                   )}
-
-                  <div className="p-3.5 rounded-xl bg-black/50 border border-zinc-800 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 text-sm text-emerald-300">
-                      <Volume2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                      <span>{latestResponse.spoken_reply}</span>
-                    </div>
-
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-xs font-mono text-[#00E676] flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                      {latestResponse.spoken_reply}
+                    </p>
                     {undoSnapshot && (
                       <button
                         onClick={handleUndo}
-                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-mono text-zinc-200 border border-zinc-700 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 border border-zinc-700 hover:border-white text-[10px] font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors cursor-pointer"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        UNDO
+                        <RotateCcw className="w-2.5 h-2.5" />
+                        {undoSnapshot.label}
                       </button>
                     )}
                   </div>
                 </motion.div>
               ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="p-6 rounded-2xl bg-zinc-900/40 border border-dashed border-zinc-800 text-center space-y-2"
-                >
-                  <p className="text-xs font-mono uppercase tracking-widest text-blue-400">
-                    Ready for Voice Input
-                  </p>
-                  <h2 className="text-xl font-bold text-white">
+                <div className="space-y-1">
+                  <p className="text-lg sm:text-xl font-semibold text-white tracking-tight">
                     बोलो, खाता तुरंत अपडेट होगा।
-                  </h2>
-                  <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                    नीचे माइक दबाएं और बोलें: “रमेश के खाते में 2 किलो चीनी 90
-                    रुपये उधार लिख दो” या “सुरेश ने 500 रुपये जमा कर दिए”
                   </p>
-                </motion.div>
+                  <p className="text-xs font-mono text-zinc-500">
+                    TRY: “रमेश के खाते में 2 किलो चीनी 90 रुपये उधार लिख दो”
+                  </p>
+                </div>
               )}
-            </AnimatePresence>
 
-            {/* Recent Transactions Feed */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5" />
-                  ताज़ा लेन-देन (Live Ledger)
-                </h3>
-                <span className="text-[11px] font-mono text-zinc-500">
-                  {transactions.length} entries
-                </span>
-              </div>
+              {errorMsg && (
+                <div className="flex items-center gap-2 text-xs font-mono text-[#FF3B30] pt-1">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+            </div>
 
-              <div className="space-y-2.5">
-                <AnimatePresence initial={false}>
-                  {transactions.map((tx) => (
-                    <motion.div
-                      key={tx.id}
-                      layout
-                      initial={{ opacity: 0, y: -12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ type: "spring", stiffness: 350, damping: 28 }}
-                      className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white">
-                              {tx.customerName}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-                                tx.type === "PAYMENT"
-                                  ? "bg-emerald-500/15 text-emerald-400"
-                                  : "bg-blue-500/15 text-blue-400"
-                              }`}
-                            >
-                              {tx.type === "PAYMENT" ? "जमा (PAID)" : "बिक्री (SALE)"}
-                            </span>
-                            <span className="text-[11px] text-zinc-500 font-mono">
-                              {tx.timestamp}
-                            </span>
-                          </div>
+            {/* Right: Tactile Hardware Mic Trigger */}
+            <div className="shrink-0">
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing}
+                className={`w-full md:w-48 h-14 flex items-center justify-center gap-3 font-mono text-xs font-bold tracking-[0.2em] uppercase border transition-all cursor-pointer ${
+                  isRecording
+                    ? "bg-[#FF3B30] border-[#FF3B30] text-white"
+                    : isProcessing
+                    ? "bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed"
+                    : "bg-white border-white text-black hover:bg-zinc-200"
+                }`}
+              >
+                {isRecording ? (
+                  <>
+                    <Square className="w-4 h-4 fill-current" />
+                    STOP
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4" />
+                    SPEAK
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+        </section>
 
-                          {tx.items.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {tx.items.map((item, i) => (
-                                <span
-                                  key={i}
-                                  className="text-xs px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300"
-                                >
-                                  {item.name} ({item.qty}) • ₹{item.price}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+        {/* Bottom 2-Column Split: Ledger Tape (Left) + Customer Directory (Right) */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800">
+          {/* Left: Live Transaction Tape */}
+          <div className="lg:col-span-7 flex flex-col">
+            <div className="px-5 py-3 border-b border-zinc-800 bg-[#0A0A0A] flex items-center justify-between">
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">
+                LEDGER TAPE // LIVE ENTRIES
+              </span>
+              <span className="text-[10px] font-mono text-zinc-600">
+                {transactions.length} RECORDS
+              </span>
+            </div>
 
-                        <div className="text-right shrink-0">
-                          <p
-                            className={`font-mono font-bold text-base ${
-                              tx.udhaarDelta > 0
-                                ? "text-red-400"
-                                : "text-emerald-400"
+            <div className="divide-y divide-zinc-800/80">
+              <AnimatePresence initial={false}>
+                {transactions.map((tx) => (
+                  <motion.div
+                    key={tx.id}
+                    layout
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                    className="p-5 hover:bg-[#0A0A0C] transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-2 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-semibold text-base text-white">
+                            {tx.customerName}
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono tracking-wider px-1.5 py-0.5 border ${
+                              tx.type === "PAYMENT"
+                                ? "border-[#00E676]/40 text-[#00E676]"
+                                : "border-zinc-700 text-zinc-300"
                             }`}
                           >
-                            {tx.udhaarDelta > 0
-                              ? `+₹${tx.udhaarDelta}`
-                              : `-₹${Math.abs(tx.udhaarDelta)}`}
-                          </p>
-                          <p className="text-[11px] text-zinc-500 font-mono">
-                            {tx.udhaarDelta > 0 ? "उधार बढ़ा" : "जमा हुआ"}
-                          </p>
+                            {tx.type === "PAYMENT" ? "JAMA" : "SALE"}
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-500">
+                            {tx.timestamp}
+                          </span>
                         </div>
+
+                        {tx.items.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {tx.items.map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="text-xs font-mono px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-300"
+                              >
+                                {item.name} · {item.qty} · ₹{item.price}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="text-xs text-zinc-500 truncate max-w-md">
+                          “{tx.rawTranscript}”
+                        </p>
                       </div>
 
-                      <div className="mt-3 pt-3 border-t border-zinc-800/60 flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-zinc-500 truncate max-w-[65%]">
-                          “{tx.rawTranscript}”
-                        </span>
+                      <div className="text-right shrink-0 space-y-2">
+                        <p
+                          className={`font-mono font-bold text-lg tabular-nums ${
+                            tx.udhaarDelta > 0
+                              ? "text-[#FF3B30]"
+                              : "text-[#00E676]"
+                          }`}
+                        >
+                          {tx.udhaarDelta > 0
+                            ? `+₹${tx.udhaarDelta}`
+                            : `-₹${Math.abs(tx.udhaarDelta)}`}
+                        </p>
+
                         <button
                           onClick={() => openWhatsAppBill(tx)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition-all cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-zinc-800 hover:border-[#00E676] text-zinc-400 hover:text-[#00E676] text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer"
                         >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          WhatsApp पर्ची
+                          <MessageCircle className="w-3 h-3" />
+                          PARCHI
                         </button>
                       </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
 
-          {/* Right Column: Customer Khata Balances */}
-          <div className="lg:col-span-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                <IndianRupee className="w-3.5 h-3.5" />
-                ग्राहक खाता बही (Customer Khata)
-              </h3>
+          {/* Right: Customer Khata Directory */}
+          <div className="lg:col-span-5 flex flex-col">
+            <div className="px-5 py-3 border-b border-zinc-800 bg-[#0A0A0A] flex items-center justify-between">
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-400">
+                CUSTOMER KHATA // BALANCES
+              </span>
+              <span className="text-[10px] font-mono text-zinc-600">
+                INR (₹)
+              </span>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="divide-y divide-zinc-800/80">
               <AnimatePresence>
-                {customers.map((cust) => {
+                {customers.map((cust, index) => {
                   const isHighlighted = highlightedCustomerId === cust.id;
                   return (
                     <motion.div
                       key={cust.id}
                       layout
                       animate={{
-                        scale: isHighlighted ? 1.02 : 1,
-                        borderColor: isHighlighted
-                          ? "rgba(59, 130, 246, 0.8)"
-                          : "rgba(39, 39, 42, 0.8)",
+                        backgroundColor: isHighlighted
+                          ? "rgba(255, 255, 255, 0.08)"
+                          : "rgba(5, 5, 5, 0)",
                       }}
-                      transition={{ type: "spring", stiffness: 300, damping: 24 }}
-                      className={`p-4 rounded-2xl border flex items-center justify-between transition-colors ${
-                        isHighlighted
-                          ? "bg-blue-950/30 shadow-lg shadow-blue-500/10"
-                          : "bg-zinc-900/50"
-                      }`}
+                      transition={{ duration: 0.25 }}
+                      className="px-5 py-4 flex items-center justify-between hover:bg-[#0A0A0C] transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-sm text-blue-400">
-                          {cust.name.charAt(0)}
-                        </div>
+                      <div className="flex items-center gap-3.5">
+                        <span className="text-[10px] font-mono text-zinc-600 w-5">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
                         <div>
-                          <p className="font-semibold text-white text-sm">
+                          <p className="font-semibold text-sm text-white">
                             {cust.name}
                           </p>
-                          <p className="text-[11px] text-zinc-500">
+                          <p className="text-[11px] font-mono text-zinc-500">
                             {cust.lastActivity}
                           </p>
                         </div>
@@ -795,16 +813,16 @@ export default function VoiceEngineUI() {
 
                       <div className="text-right">
                         <p
-                          className={`font-mono font-bold text-base ${
+                          className={`font-mono font-bold text-base tabular-nums ${
                             cust.totalUdhaar > 0
-                              ? "text-red-400"
-                              : "text-emerald-400"
+                              ? "text-white"
+                              : "text-[#00E676]"
                           }`}
                         >
                           ₹{cust.totalUdhaar.toLocaleString("en-IN")}
                         </p>
-                        <p className="text-[10px] font-mono uppercase text-zinc-500">
-                          {cust.totalUdhaar > 0 ? "बाकी (Due)" : "साफ़ (Clear)"}
+                        <p className="text-[9px] font-mono tracking-[0.15em] uppercase text-zinc-500">
+                          {cust.totalUdhaar > 0 ? "UDHAAR" : "SETTLED"}
                         </p>
                       </div>
                     </motion.div>
@@ -813,62 +831,8 @@ export default function VoiceEngineUI() {
               </AnimatePresence>
             </div>
           </div>
-        </div>
+        </section>
       </main>
-
-      {/* Bottom Floating Tactile Voice Dock */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-gradient-to-t from-[#070709] via-[#070709]/95 to-transparent pt-6 pb-5 px-4">
-        <div className="max-w-xl mx-auto">
-          <div className="p-2 rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-3">
-            <div className="pl-3 flex items-center gap-3 overflow-hidden">
-              {isRecording ? (
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs font-mono text-red-400 font-semibold">
-                    सुन रहा हूँ... (बोलने के बाद STOP दबाएं)
-                  </span>
-                </div>
-              ) : isProcessing ? (
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-ping" />
-                  <span className="text-xs font-mono text-blue-400">
-                    हिसाब समझ रहा हूँ...
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs font-mono text-zinc-400 truncate">
-                  TAP MIC • HINDI / MARATHI / HINGLISH
-                </span>
-              )}
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing}
-              className={`relative flex items-center gap-2 px-6 py-3 rounded-xl font-mono text-xs font-bold tracking-wider transition-all cursor-pointer shrink-0 ${
-                isRecording
-                  ? "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/30"
-                  : isProcessing
-                  ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                  : "bg-white hover:bg-zinc-200 text-black shadow-lg shadow-white/10"
-              }`}
-            >
-              {isRecording ? (
-                <>
-                  <Square className="w-4 h-4 fill-current" />
-                  STOP
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4" />
-                  SPEAK
-                </>
-              )}
-            </motion.button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
