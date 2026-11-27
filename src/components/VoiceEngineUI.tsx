@@ -520,8 +520,8 @@ export default function VoiceEngineUI() {
 
   // Theme + Liquid Glass Tokens
   const bgPage = isDark
-    ? "bg-[#050814] text-zinc-100"
-    : "bg-[#E2ECFA] text-slate-900";
+    ? "bg-[#09090B] text-zinc-100"
+    : "bg-[#F5F5F7] text-slate-900";
   const bgGlass = isDark ? "liquid-glass-dark" : "liquid-glass-light";
   const bgSurface = bgGlass;
   const bgSubtle = isDark
