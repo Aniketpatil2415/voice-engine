@@ -1,58 +1,161 @@
-export interface ActionCardData {
-  title: string;
-  subtitle: string;
-  fields: { label: string; value: string; highlight?: boolean }[];
-  primaryActionLabel?: string;
-}
+import { Customer, Transaction, VoiceActionResponse } from "@/types/bolikhata";
 
-export interface VoiceEngineResponse {
-  transcript: string;
-  intent: string;
-  status: "success" | "needs_clarification" | "error";
-  confidence: "high" | "medium" | "low";
-  card: ActionCardData | null;
-  spoken_reply: string;
-  missing_field: string | null;
-  latency_ms: {
-    stt: number;
-    llm: number;
-    total: number;
-  };
-}
+export const INITIAL_CUSTOMERS: Customer[] = [
+  {
+    id: "cust-1",
+    name: "रमेश",
+    phone: "919822001122",
+    totalUdhaar: 450,
+    lastActivity: "आज, सुबह 10:15",
+  },
+  {
+    id: "cust-2",
+    name: "सुरेश",
+    phone: "919822003344",
+    totalUdhaar: 1200,
+    lastActivity: "कल, शाम 6:40",
+  },
+  {
+    id: "cust-3",
+    name: "अनीता",
+    phone: "919822005566",
+    totalUdhaar: 180,
+    lastActivity: "कल, दोपहर 2:10",
+  },
+  {
+    id: "cust-4",
+    name: "मोहन",
+    phone: "919822007788",
+    totalUdhaar: 0,
+    lastActivity: "2 दिन पहले",
+  },
+];
 
-export const DOMAIN_CONFIG = {
-  appName: "BharatVoice Core",
-  tagline: "Universal Voice-First Action Engine • Hinglish, Hindi & Marathi Ready",
-  whisperContextPrompt:
-    "Indian speaker mixing Hindi, Marathi, and English (Hinglish). Common words: rupay, kilo, udhaar, khata, complaint, appointment, bill, number, cancel, confirm, नमस्ते, नहीं, चीनी, किलो, ग्राम, लीटर, रुपये, उधार, खाते में, लिख दो, कर दो, हटा दो, कैंसिल, कंफर्म, बिल, रमेश, सुरेश.",
-  sampleCommands: [
-    "Ramesh ke khate mein 2 kilo chini 90 rupay udhaar likh do",
-    "Nahi, chini 3 kilo 135 rupay kar do",
-    "Mere area mein 3 din se paani nahi aa raha, complaint file karo",
-  ],
-  systemPrompt: `You are BharatVoice Core, an ultra-fast voice-to-action AI engine for India.
-Users speak in Hindi, Marathi, English, or Hinglish with accents and filler words.
-Your job is to understand their intent, handle corrections (using conversation history), and return STRICT JSON ONLY.
-
-JSON Schema:
-{
-  "intent": "CREATE_ENTRY | UPDATE_LAST | QUERY | CLARIFY | UNKNOWN",
-  "status": "success" | "needs_clarification",
-  "confidence": "high" | "medium" | "low",
-  "missing_field": null or "string describing what single info is missing",
-  "spoken_reply": "Short, natural 1-sentence confirmation or question in conversational Devanagari Hindi (NEVER Roman/English letters, so Hindi TTS pronounces it cleanly). Example: 'रमेश के खाते में 3 किलो चीनी 135 रुपये अपडेट कर दिया है।' Keep under 15 words.",
-  "card": {
-    "title": "Short clean title for the action",
-    "subtitle": "Category or context",
-    "fields": [
-      { "label": "Key name", "value": "Extracted value", "highlight": false }
+export const INITIAL_TRANSACTIONS: Transaction[] = [
+  {
+    id: "tx-init-1",
+    customerId: "cust-1",
+    customerName: "रमेश",
+    type: "SALE",
+    items: [
+      { name: "आटा", qty: "5 किलो", price: 250 },
+      { name: "तेल", qty: "1 लीटर", price: 200 },
     ],
-    "primaryActionLabel": "Confirm & Execute"
-  }
+    totalAmount: 450,
+    paidAmount: 0,
+    udhaarDelta: 450,
+    timestamp: "10:15 AM",
+    rawTranscript: "रमेश के खाते में 5 किलो आटा 250 और 1 लीटर तेल 200 उधार लिख दो",
+  },
+];
+
+// Used automatically when GROQ_API_KEY is not set (Zero-Key Judge Testing)
+export const OFFLINE_DEMO_SCENARIOS: {
+  label: string;
+  response: VoiceActionResponse;
+}[] = [
+  {
+    label: "रमेश: 2 किलो चीनी ₹90 + तेल ₹160 (₹100 कैश)",
+    response: {
+      transcript:
+        "रमेश के खाते में 2 किलो चीनी 90 रुपये और 1 लीटर तेल 160 रुपये डाल दो, 100 कैश दिया बाकी उधार।",
+      intent: "ADD_SALE",
+      status: "success",
+      customerName: "रमेश",
+      items: [
+        { name: "चीनी", qty: "2 किलो", price: 90 },
+        { name: "तेल", qty: "1 लीटर", price: 160 },
+      ],
+      totalAmount: 250,
+      paidAmount: 100,
+      udhaarDelta: 150,
+      spoken_reply: "रमेश के खाते में 150 रुपये उधार जोड़ दिया है।",
+      missing_field: null,
+      latency_ms: { stt: 410, llm: 520, total: 930 },
+    },
+  },
+  {
+    label: "सुधार: नहीं, चीनी 3 किलो ₹135 कर दो",
+    response: {
+      transcript: "नहीं, चीनी 3 किलो 135 रुपये कर दो।",
+      intent: "UPDATE_LAST",
+      status: "success",
+      customerName: "रमेश",
+      items: [
+        { name: "चीनी", qty: "3 किलो", price: 135 },
+        { name: "तेल", qty: "1 लीटर", price: 160 },
+      ],
+      totalAmount: 295,
+      paidAmount: 100,
+      udhaarDelta: 195,
+      spoken_reply: "रमेश की एंट्री अपडेट हो गई, अब 195 रुपये उधार है।",
+      missing_field: null,
+      latency_ms: { stt: 380, llm: 490, total: 870 },
+    },
+  },
+  {
+    label: "जमा: सुरेश ने ₹500 जमा कर दिए",
+    response: {
+      transcript: "सुरेश ने 500 रुपये जमा कर दिए।",
+      intent: "RECORD_PAYMENT",
+      status: "success",
+      customerName: "सुरेश",
+      items: [],
+      totalAmount: 500,
+      paidAmount: 500,
+      udhaarDelta: -500,
+      spoken_reply: "सुरेश के खाते से 500 रुपये जमा कर दिए हैं।",
+      missing_field: null,
+      latency_ms: { stt: 350, llm: 440, total: 790 },
+    },
+  },
+  {
+    label: "पूछताछ: सुरेश का कितना बाकी है?",
+    response: {
+      transcript: "सुरेश का कितना बाकी है?",
+      intent: "CHECK_BALANCE",
+      status: "success",
+      customerName: "सुरेश",
+      items: [],
+      totalAmount: 0,
+      paidAmount: 0,
+      udhaarDelta: 0,
+      spoken_reply: "सुरेश के खाते का पूरा हिसाब स्क्रीन पर दिखा दिया है।",
+      missing_field: null,
+      latency_ms: { stt: 310, llm: 390, total: 700 },
+    },
+  },
+];
+
+export const BOLIKHATA_CONFIG = {
+  appName: "BOLIKHATA",
+  tagline: "Voice-First Kirana Ledger • Zero Typing",
+  whisperContextPrompt:
+    "नमस्ते, रमेश, सुरेश, अनीता, मोहन, चीनी, आटा, तेल, दूध, चावल, किलो, ग्राम, लीटर, रुपये, उधार, कैश, जमा, बाकी, खाते में, लिख दो, नहीं, कर दो, कितना बाकी है।",
+  getSystemPrompt: (existingCustomerNames: string[]) => `You are BoliKhata, an ultra-fast voice-first ledger engine for Indian kirana shopkeepers.
+Existing customers in ledger: ${existingCustomerNames.join(", ")}.
+Always match spoken names to existing customer names in Devanagari if phonetically close (e.g., "Ramesh" -> "रमेश"). If it's a new customer, write their name cleanly in Devanagari.
+
+Return STRICT JSON ONLY matching this exact schema:
+{
+  "intent": "ADD_SALE | RECORD_PAYMENT | CHECK_BALANCE | UPDATE_LAST | CLARIFY",
+  "status": "success | needs_clarification",
+  "customerName": "Devanagari name or null",
+  "items": [
+    { "name": "Item name in Devanagari", "qty": "e.g. 2 किलो", "price": 90 }
+  ],
+  "totalAmount": 250,
+  "paidAmount": 100,
+  "udhaarDelta": 150,
+  "missing_field": null or "string",
+  "spoken_reply": "Short, natural 1-sentence confirmation in conversational Devanagari Hindi (under 15 words, NEVER formal textbook Hindi)."
 }
 
-Rules:
-1. If the user says something like "nahi 2 nahi 3 kar do", use the previous message context and return intent "UPDATE_LAST" with corrected fields.
-2. If critical info (like amount, name, or main detail) is missing or unclear, set status to "needs_clarification", set "missing_field", and ask ONE short voice question in "spoken_reply".
-3. Never output markdown or text outside the JSON object.`,
+Math & Intent Rules:
+1. ADD_SALE: Calculate totalAmount = sum of item prices. If user says "100 cash diya baaki udhaar", paidAmount = 100, udhaarDelta = totalAmount - paidAmount. If nothing paid, paidAmount = 0, udhaarDelta = totalAmount.
+2. RECORD_PAYMENT: When customer pays back ("रमेश ने 200 जमा किए"), items = [], totalAmount = 200, paidAmount = 200, udhaarDelta = -200 (negative!).
+3. CHECK_BALANCE: When shopkeeper asks ("रमेश का कितना बाकी है?"), set intent = "CHECK_BALANCE", udhaarDelta = 0.
+4. UPDATE_LAST: When user corrects previous entry ("नहीं चीनी 3 किलो 135 रुपये कर दो"), use conversation history to output the COMPLETE corrected items, totalAmount, paidAmount, and udhaarDelta.
+5. CLARIFY: If customer name or amount is missing for a sale/payment, set status = "needs_clarification", missing_field = what's missing, and ask ONE short question in spoken_reply.
+Never output markdown or text outside JSON.`,
 };
