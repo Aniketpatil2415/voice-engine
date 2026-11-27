@@ -520,31 +520,36 @@ export default function VoiceEngineUI() {
 
   // Theme + Liquid Glass Tokens
   const bgPage = isDark
-    ? "bg-[#07070A] text-zinc-100"
-    : "bg-[#EEF2F6] text-slate-900";
-  const bgSurface = isDark ? "bg-[#111116]" : "bg-white";
-  const bgGlass = isDark
-    ? "bg-zinc-900/65 backdrop-blur-xl ring-1 ring-inset ring-white/10 shadow-xl shadow-black/40"
-    : "bg-white/75 backdrop-blur-xl ring-1 ring-inset ring-white/80 shadow-lg shadow-slate-900/5";
-  const bgSubtle = isDark ? "bg-[#18181F]" : "bg-slate-50/90";
-  const borderCol = isDark ? "border-zinc-800/80" : "border-slate-200/80";
-  const textMuted = isDark ? "text-zinc-400" : "text-slate-500";
+    ? "bg-[#050814] text-zinc-100"
+    : "bg-[#E2ECFA] text-slate-900";
+  const bgGlass = isDark ? "liquid-glass-dark" : "liquid-glass-light";
+  const bgSurface = bgGlass;
+  const bgSubtle = isDark
+    ? "bg-white/[0.06] backdrop-blur-md"
+    : "bg-white/45 backdrop-blur-md";
+  const borderCol = isDark ? "border-white/15" : "border-white/60";
+  const textMuted = isDark ? "text-zinc-400" : "text-slate-600";
   const textPrimary = isDark ? "text-white" : "text-slate-900";
 
   return (
     <div
       className={`relative min-h-screen w-full overflow-x-hidden transition-colors duration-300 font-sans pb-24 md:pb-10 ${bgPage}`}
     >
-      {/* Subtle Ambient Background Orbs for Liquid Glass Refraction */}
+      {/* Vibrant iPhone-Style Mesh Backdrop for Glass Refraction */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
         <div
-          className={`absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl transition-opacity duration-500 ${
-            isDark ? "bg-blue-600/15" : "bg-blue-400/20"
+          className={`absolute -top-24 -left-20 h-96 w-96 rounded-full blur-3xl ${
+            isDark ? "bg-blue-600/35" : "bg-sky-400/50"
           }`}
         />
         <div
-          className={`absolute top-40 -right-24 h-80 w-80 rounded-full blur-3xl transition-opacity duration-500 ${
-            isDark ? "bg-emerald-500/10" : "bg-indigo-300/20"
+          className={`absolute top-1/3 -right-24 h-96 w-96 rounded-full blur-3xl ${
+            isDark ? "bg-indigo-600/30" : "bg-violet-400/40"
+          }`}
+        />
+        <div
+          className={`absolute -bottom-24 left-1/4 h-96 w-96 rounded-full blur-3xl ${
+            isDark ? "bg-emerald-500/20" : "bg-cyan-300/45"
           }`}
         />
       </div>
@@ -1184,52 +1189,48 @@ export default function VoiceEngineUI() {
         </section>
       </main>
 
-      {/* Mobile Liquid Glass Sticky Thumb-Zone Mic Dock */}
-      <div
-        className={`md:hidden fixed bottom-0 inset-x-0 z-40 border-t ${borderCol} px-4 py-3 ${
-          isDark
-            ? "bg-[#09090D]/80 backdrop-blur-xl"
-            : "bg-white/80 backdrop-blur-xl"
-        }`}
-      >
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isProcessing}
-          className={`relative w-full h-12 rounded-2xl flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer shadow-lg ${
-            isRecording
-              ? "bg-red-600 text-white shadow-red-600/30"
-              : isProcessing
-              ? `${bgSubtle} ${textMuted} cursor-not-allowed`
-              : "bg-blue-600 text-white shadow-blue-600/30"
-          }`}
-        >
-          {isRecording && (
-            <motion.span
-              initial={{ scale: 1, opacity: 0.65 }}
-              animate={{ scale: 1.08, opacity: 0 }}
-              transition={{
-                repeat: Infinity,
-                duration: 1.1,
-                ease: "easeOut",
-              }}
-              className="absolute inset-0 rounded-2xl border-2 border-red-500 pointer-events-none"
-            />
-          )}
-          {isRecording ? (
-            <>
-              <Square className="w-4 h-4 fill-current" />
-              <span>{t.stopBtn}</span>
-            </>
-          ) : isProcessing ? (
-            <span>{t.processingText}</span>
-          ) : (
-            <>
-              <Mic className="w-5 h-5" />
-              <span>{t.speakBtn}</span>
-            </>
-          )}
-        </motion.button>
+      {/* Mobile iPhone-Style Floating Liquid Glass Mic Pill */}
+      <div className="md:hidden fixed bottom-4 inset-x-4 z-40">
+        <div className={`p-1.5 rounded-full ${bgGlass}`}>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isProcessing}
+            className={`relative w-full h-12 rounded-full flex items-center justify-center gap-2.5 font-bold text-sm tracking-wide transition-all cursor-pointer ${
+              isRecording
+                ? "liquid-btn-red text-white"
+                : isProcessing
+                ? `${bgSubtle} ${textMuted} cursor-not-allowed`
+                : "liquid-btn-blue text-white"
+            }`}
+          >
+            {isRecording && (
+              <motion.span
+                initial={{ scale: 1, opacity: 0.65 }}
+                animate={{ scale: 1.08, opacity: 0 }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 1.1,
+                  ease: "easeOut",
+                }}
+                className="absolute inset-0 rounded-full border-2 border-red-400 pointer-events-none"
+              />
+            )}
+            {isRecording ? (
+              <>
+                <Square className="w-4 h-4 fill-current" />
+                <span>{t.stopBtn}</span>
+              </>
+            ) : isProcessing ? (
+              <span>{t.processingText}</span>
+            ) : (
+              <>
+                <Mic className="w-5 h-5" />
+                <span>{t.speakBtn}</span>
+              </>
+            )}
+          </motion.button>
+        </div>
       </div>
     </div>
   );
